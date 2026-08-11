@@ -164,7 +164,7 @@ define([
 
                 if (item.qty_available <= 0) {
                     html += '<tr class="rma-items-row-disabled">';
-                    html += '<td><input type="checkbox" disabled/></td>';
+                    html += '<td><input type="checkbox" disabled></td>';
                     html += '<td>' + this.escapeHtml(item.name) +
                         ' <span class="rma-fully-returned">(' +
                         $.mage.__('Fully returned') + ')</span></td>';
@@ -180,7 +180,7 @@ define([
                 html += '<tr>';
                 html += '<td><input type="checkbox" ' +
                     'class="rma-item-checkbox" ' +
-                    'data-item-id="' + item.order_item_id + '"/></td>';
+                    'data-item-id="' + item.order_item_id + '"></td>';
                 html += '<td>' + this.escapeHtml(item.name) + '</td>';
                 html += '<td>' + this.escapeHtml(item.sku) + '</td>';
                 html += '<td>' + item.qty_ordered + '</td>';
@@ -189,7 +189,7 @@ define([
                     'value="' + item.qty_available + '" ' +
                     'min="1" max="' + item.qty_available + '" ' +
                     'class="admin__control-text rma-item-qty" ' +
-                    'disabled/></td>';
+                    'disabled></td>';
                 html += '<td><select ' +
                     'class="admin__control-select rma-item-condition" ' +
                     'disabled>' + conditionOptions + '</select></td>';
