@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0 (2026-08-11)
+
+
+### Miscellaneous Chores
+
+* MagenX Commerce Magento 2 module ([c0d0df8](https://github.com/magenxcommerce/module-rma/commit/c0d0df84371344c78b80ccc965cb6d74916db4c2))
+* Magenxcommerce composer namespace ([2939dab](https://github.com/magenxcommerce/module-rma/commit/2939dab64d363b85625c05ef8d82240fc0289cfc))
+
 ## [2.4.1] - 2026-07-23
 
 ### Fixed
