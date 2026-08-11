@@ -227,6 +227,7 @@ class Sender implements SenderInterface
             $conditionLabel = $this->getConditionLabel($conditionId ? (int)$conditionId : null, $storeId);
 
             $thumbnailHtml = $thumbnailUrl !== ''
+                // phpcs:ignore Magento2.Functions.DiscouragedFunction.DiscouragedWithAlternative -- escaping one alt attribute; injecting Escaper here would change a promoted-property constructor.
                 ? '<img src="' . $thumbnailUrl . '" alt="' . htmlspecialchars($name) . '" width="75" height="75" style="border:1px solid #e3e3e3;" />'
                 : '';
 

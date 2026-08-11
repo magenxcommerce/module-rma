@@ -44,6 +44,7 @@ class StatusCodes
      * @param string $code
      * @return bool
      */
+    // phpcs:ignore Magento2.Functions.StaticFunction.StaticFunction -- constant mapping; nothing to intercept.
     public static function isProtected(string $code): bool
     {
         return in_array($code, self::PROTECTED_CODES, true);

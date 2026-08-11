@@ -71,6 +71,7 @@ class AttachmentService
     {
         $maxBytes = $this->moduleConfig->getMaxAttachmentFileSizeBytes();
 
+        // phpcs:ignore Magento2.Security.Superglobal.SuperglobalUsageError -- size pre-check only; the upload itself goes through uploaderFactory below.
         if (isset($_FILES[$fileId]['size']) && $_FILES[$fileId]['size'] > $maxBytes) {
             throw new LocalizedException(
                 __('File exceeds the maximum allowed size of %1 MB.', $this->moduleConfig->getMaxAttachmentFileSize())
@@ -94,6 +95,7 @@ class AttachmentService
         }
 
         $fullPath = $tmpPath . '/' . $result['file'];
+        // phpcs:ignore Magento2.Functions.DiscouragedFunction.Discouraged -- size of a just-written local temp file; no store abstraction involved.
         $fileSize = (int)filesize($fullPath);
 
         if ($fileSize > $maxBytes) {
@@ -125,6 +127,7 @@ class AttachmentService
         $saved = [];
 
         foreach (array_slice($tmpFiles, 0, $maxFiles) as $tmpFile) {
+            // phpcs:ignore Magento2.Functions.DiscouragedFunction.Discouraged -- string-level basename, used to strip any directory part from an untrusted name.
             $fileName = basename($tmpFile['file'] ?? '');
             if ($fileName === '') {
                 continue;
@@ -252,6 +255,7 @@ class AttachmentService
     ): ResponseInterface {
         $filePath = $this->getAbsolutePath($attachment);
 
+        // phpcs:ignore Magento2.Functions.DiscouragedFunction.Discouraged -- local temp path already resolved through Filesystem; a plain existence check is enough.
         if (!file_exists($filePath)) {
             throw new NoSuchEntityException(__('File not found.'));
         }

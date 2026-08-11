@@ -47,7 +47,7 @@ $storeName = $escaper->escapeHtml($block->getStoreName($storeId), ['br']);
                 </tr>
                 <tr>
                     <th><?= $escaper->escapeHtml(__('Purchased From')) ?></th>
-                    <td><?= $storeName ?></td>
+                    <td><?= /* @noEscape */ $storeName ?></td>
                 </tr>
                 <tr>
                     <th><?= $escaper->escapeHtml(__('Created At')) ?></th>
@@ -76,15 +76,15 @@ $storeName = $escaper->escapeHtml($block->getStoreName($storeId), ['br']);
                     <th><?= $escaper->escapeHtml(__('Customer')) ?></th>
                     <td>
                         <?php if ($isGuest): ?>
-                            <?= $customerName ?> <span class="rma-guest-label">(<?= $escaper->escapeHtml(__('Guest')) ?>)</span>
+                            <?= /* @noEscape */ $customerName ?> <span class="rma-guest-label">(<?= $escaper->escapeHtml(__('Guest')) ?>)</span>
                         <?php else: ?>
-                            <a href="<?= $escaper->escapeUrl($block->getCustomerUrl((int)$customerId)) ?>"><?= $customerName ?></a>
+                            <a href="<?= $escaper->escapeUrl($block->getCustomerUrl((int)$customerId)) ?>"><?= /* @noEscape */ $customerName ?></a>
                         <?php endif; ?>
                     </td>
                 </tr>
                 <tr>
                     <th><?= $escaper->escapeHtml(__('Email')) ?></th>
-                    <td><a href="mailto:<?= $customerEmail ?>"><?= $customerEmail ?></a></td>
+                    <td><a href="mailto:<?= /* @noEscape */ $customerEmail ?>"><?= /* @noEscape */ $customerEmail ?></a></td>
                 </tr>
             </table>
         </div>

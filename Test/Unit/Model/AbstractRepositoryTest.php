@@ -81,6 +81,7 @@ class ConcreteTestRepository extends AbstractRepository
     }
 }
 
+// phpcs:ignore PSR1.Classes.ClassDeclaration.MultipleClasses -- test-local fixture; keeping it beside the test it serves.
 class AbstractRepositoryTest extends TestCase
 {
     private AbstractDb&MockObject $resourceModel;
