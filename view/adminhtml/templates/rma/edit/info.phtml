@@ -84,7 +84,7 @@ $storeName = $escaper->escapeHtml($block->getStoreName($storeId), ['br']);
                 </tr>
                 <tr>
                     <th><?= $escaper->escapeHtml(__('Email')) ?></th>
-                    <td><a href="mailto:<?= /* @noEscape */ $customerEmail ?>"><?= /* @noEscape */ $customerEmail ?></a></td>
+                    <td><a href="<?= $escaper->escapeUrl('mailto:' . $rma->getCustomerEmail()) ?>"><?= /* @noEscape */ $customerEmail ?></a></td>
                 </tr>
             </table>
         </div>

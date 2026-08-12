@@ -64,26 +64,27 @@ class AttachmentService
 
     /**
      * @param string $fileId
+     * @param int $storeId
      * @return array
      * @throws LocalizedException
      */
-    public function uploadToTmp(string $fileId): array
+    public function uploadToTmp(string $fileId, int $storeId = 0): array
     {
-        $maxBytes = $this->moduleConfig->getMaxAttachmentFileSizeBytes();
+        $maxBytes = $this->moduleConfig->getMaxAttachmentFileSizeBytes($storeId);
 
         // phpcs:ignore Magento2.Security.Superglobal.SuperglobalUsageError -- size pre-check only; the upload itself goes through uploaderFactory below.
         if (isset($_FILES[$fileId]['size']) && $_FILES[$fileId]['size'] > $maxBytes) {
             throw new LocalizedException(
-                __('File exceeds the maximum allowed size of %1 MB.', $this->moduleConfig->getMaxAttachmentFileSize())
+                __('File exceeds the maximum allowed size of %1 MB.', $this->moduleConfig->getMaxAttachmentFileSize($storeId))
             );
         }
 
         $uploader = $this->uploaderFactory->create(['fileId' => $fileId]);
-        $uploader->setAllowedExtensions($this->moduleConfig->getAllowedAttachmentExtensions());
+        $uploader->setAllowedExtensions($this->moduleConfig->getAllowedAttachmentExtensions($storeId));
         $uploader->setAllowRenameFiles(true);
         $uploader->setFilesDispersion(false);
 
-        if (!$uploader->checkMimeType($this->getAllowedMimeTypes())) {
+        if (!$uploader->checkMimeType($this->getAllowedMimeTypes($storeId))) {
             throw new LocalizedException(__('File type not allowed.'));
         }
 
@@ -101,7 +102,7 @@ class AttachmentService
         if ($fileSize > $maxBytes) {
             $this->varDirectory->delete(self::BASE_TMP_PATH . '/' . $result['file']);
             throw new LocalizedException(
-                __('File exceeds the maximum allowed size of %1 MB.', $this->moduleConfig->getMaxAttachmentFileSize())
+                __('File exceeds the maximum allowed size of %1 MB.', $this->moduleConfig->getMaxAttachmentFileSize($storeId))
             );
         }
 
@@ -118,12 +119,13 @@ class AttachmentService
      * @param int $rmaId
      * @param array $tmpFiles
      * @param int|null $commentId
+     * @param int $storeId
      * @return AttachmentInterface[]
      * @throws LocalizedException
      */
-    public function moveFromTmpAndSave(int $rmaId, array $tmpFiles, ?int $commentId = null): array
+    public function moveFromTmpAndSave(int $rmaId, array $tmpFiles, ?int $commentId = null, int $storeId = 0): array
     {
-        $maxFiles = $this->moduleConfig->getMaxAttachmentFiles();
+        $maxFiles = $this->moduleConfig->getMaxAttachmentFiles($storeId);
         $saved = [];
 
         foreach (array_slice($tmpFiles, 0, $maxFiles) as $tmpFile) {
@@ -212,6 +214,11 @@ class AttachmentService
      */
     public function deleteAttachment(AttachmentInterface $attachment): void
     {
+        // Resolve through getAbsolutePath() rather than deleting the stored path
+        // directly: it is the guard that asserts the path is still inside
+        // BASE_PATH, so a tampered file_path row cannot reach the rest of var/.
+        $this->getAbsolutePath($attachment);
+
         $filePath = $attachment->getFilePath();
 
         if ($this->varDirectory->isExist($filePath)) {
@@ -225,10 +232,11 @@ class AttachmentService
      * @param string $json
      * @param int $rmaId
      * @param int|null $commentId
+     * @param int $storeId
      * @return void
      * @throws LocalizedException
      */
-    public function saveFromJson(string $json, int $rmaId, ?int $commentId = null): void
+    public function saveFromJson(string $json, int $rmaId, ?int $commentId = null, int $storeId = 0): void
     {
         if ($json === '' || $json === '[]') {
             return;
@@ -239,7 +247,7 @@ class AttachmentService
             return;
         }
 
-        $this->moveFromTmpAndSave($rmaId, $tmpFiles, $commentId);
+        $this->moveFromTmpAndSave($rmaId, $tmpFiles, $commentId, $storeId);
     }
 
     /**
@@ -286,14 +294,15 @@ class AttachmentService
     }
 
     /**
-     * Returns the MIME types permitted for the currently configured extensions.
+     * Returns the MIME types permitted for the configured extensions.
      *
+     * @param int $storeId
      * @return string[]
      */
-    private function getAllowedMimeTypes(): array
+    private function getAllowedMimeTypes(int $storeId = 0): array
     {
         $allowed = [];
-        foreach ($this->moduleConfig->getAllowedAttachmentExtensions() as $ext) {
+        foreach ($this->moduleConfig->getAllowedAttachmentExtensions($storeId) as $ext) {
             if (isset(AllowedExtensions::EXTENSION_MIME_MAP[$ext])) {
                 array_push($allowed, ...AllowedExtensions::EXTENSION_MIME_MAP[$ext]);
             }

@@ -63,7 +63,10 @@ class Search extends Action implements HttpGetActionInterface
             ]);
         }
 
-        $this->searchCriteriaBuilder->addFilter('increment_id', '%' . $searchKey . '%', 'like');
+        // Escape the LIKE wildcards so a searchKey of "%" does not turn into a
+        // match-everything scan. The value itself is still bound as a parameter.
+        $escapedKey = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], (string)$searchKey);
+        $this->searchCriteriaBuilder->addFilter('increment_id', '%' . $escapedKey . '%', 'like');
         $this->searchCriteriaBuilder->addFilter('store_id', $enabledStoreIds, 'in');
         // Fetch more than needed since we post-filter for eligibility
         $this->searchCriteriaBuilder->setPageSize($limit * 3);
