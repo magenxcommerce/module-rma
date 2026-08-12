@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/magenxcommerce/module-rma/compare/v1.0.0...v1.0.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* Refactor status resolution and attachment config scoping ([#4](https://github.com/magenxcommerce/module-rma/issues/4)) ([9185295](https://github.com/magenxcommerce/module-rma/commit/91852950411e13530e94a8fd13b9db997d98fbbc))
+
 ## 1.0.0 (2026-08-11)
 
 
