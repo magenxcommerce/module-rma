@@ -19,11 +19,12 @@ use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\Item;
 use Magenx\Rma\Model\ItemFactory;
 use Magenx\Rma\Model\RMA\StatusCodes;
-use Magenx\Rma\Model\ResourceModel\Status\CollectionFactory as StatusCollectionFactory;
+use Magenx\Rma\Model\RMA\StatusResolver;
 use Magenx\Rma\Service\AttachmentService;
 use Magenx\Rma\Service\OrderEligibility;
 use Magenx\Rma\Service\RmaSubmitService;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\Event\ManagerInterface as EventManagerInterface;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Sales\Api\Data\OrderInterface;
@@ -36,12 +37,13 @@ class RmaSubmitServiceTest extends TestCase
     private RMAInterfaceFactory&MockObject $rmaFactory;
     private ItemFactory&MockObject $itemFactory;
     private ItemRepositoryInterface&MockObject $itemRepository;
-    private StatusCollectionFactory&MockObject $statusCollectionFactory;
+    private StatusResolver&MockObject $statusResolver;
     private ModuleConfig&MockObject $moduleConfig;
     private AttachmentService&MockObject $attachmentService;
     private OrderEligibility&MockObject $orderEligibility;
     private ResourceConnection&MockObject $resourceConnection;
     private AdapterInterface&MockObject $connection;
+    private EventManagerInterface&MockObject $eventManager;
     private RmaSubmitService $service;
 
     protected function setUp(): void
@@ -50,12 +52,13 @@ class RmaSubmitServiceTest extends TestCase
         $this->rmaFactory = $this->createMock(RMAInterfaceFactory::class);
         $this->itemFactory = $this->createMock(ItemFactory::class);
         $this->itemRepository = $this->createMock(ItemRepositoryInterface::class);
-        $this->statusCollectionFactory = $this->createMock(StatusCollectionFactory::class);
+        $this->statusResolver = $this->createMock(StatusResolver::class);
         $this->moduleConfig = $this->createMock(ModuleConfig::class);
         $this->attachmentService = $this->createMock(AttachmentService::class);
         $this->orderEligibility = $this->createMock(OrderEligibility::class);
         $this->resourceConnection = $this->createMock(ResourceConnection::class);
         $this->connection = $this->createMock(AdapterInterface::class);
+        $this->eventManager = $this->createMock(EventManagerInterface::class);
 
         $this->resourceConnection->method('getConnection')->willReturn($this->connection);
 
@@ -64,11 +67,12 @@ class RmaSubmitServiceTest extends TestCase
             $this->rmaFactory,
             $this->itemFactory,
             $this->itemRepository,
-            $this->statusCollectionFactory,
+            $this->statusResolver,
             $this->moduleConfig,
             $this->attachmentService,
             $this->orderEligibility,
-            $this->resourceConnection
+            $this->resourceConnection,
+            $this->eventManager
         );
     }
 
@@ -176,12 +180,7 @@ class RmaSubmitServiceTest extends TestCase
 
         $this->moduleConfig->method('isAutoApproveEnabled')->willReturn(false);
 
-        $statusCollection = $this->createMock(\Magenx\Rma\Model\ResourceModel\Status\Collection::class);
-        $statusCollection->method('addFieldToFilter')->willReturnSelf();
-        $statusCollection->method('setPageSize')->willReturnSelf();
-        $statusCollection->method('getFirstItem')->willReturn(new \Magento\Framework\DataObject());
-
-        $this->statusCollectionFactory->method('create')->willReturn($statusCollection);
+        $this->statusResolver->method('getIdByCode')->willReturn(null);
 
         $this->service->createRma(
             order: $order,
@@ -202,19 +201,10 @@ class RmaSubmitServiceTest extends TestCase
 
         $this->moduleConfig->method('isAutoApproveEnabled')->with(1)->willReturn(false);
 
-        $statusItem = $this->createMock(\Magenx\Rma\Api\Data\StatusInterface::class);
-        $statusItem->method('getEntityId')->willReturn(1);
-
-        $statusCollection = $this->createMock(\Magenx\Rma\Model\ResourceModel\Status\Collection::class);
-        $statusCollection->method('setPageSize')->willReturnSelf();
-        $statusCollection->method('getFirstItem')->willReturn($statusItem);
-
-        $statusCollection->expects($this->once())
-            ->method('addFieldToFilter')
-            ->with(\Magenx\Rma\Api\Data\StatusInterface::CODE, StatusCodes::NEW_REQUEST)
-            ->willReturnSelf();
-
-        $this->statusCollectionFactory->method('create')->willReturn($statusCollection);
+        $this->statusResolver->expects($this->once())
+            ->method('getIdByCode')
+            ->with(StatusCodes::NEW_REQUEST)
+            ->willReturn(1);
 
         $rma = $this->createMock(RMAInterface::class);
         $rma->method('getEntityId')->willReturn(10);
@@ -242,19 +232,10 @@ class RmaSubmitServiceTest extends TestCase
 
         $this->moduleConfig->method('isAutoApproveEnabled')->with(1)->willReturn(true);
 
-        $statusItem = $this->createMock(\Magenx\Rma\Api\Data\StatusInterface::class);
-        $statusItem->method('getEntityId')->willReturn(2);
-
-        $statusCollection = $this->createMock(\Magenx\Rma\Model\ResourceModel\Status\Collection::class);
-        $statusCollection->method('setPageSize')->willReturnSelf();
-        $statusCollection->method('getFirstItem')->willReturn($statusItem);
-
-        $statusCollection->expects($this->once())
-            ->method('addFieldToFilter')
-            ->with(\Magenx\Rma\Api\Data\StatusInterface::CODE, StatusCodes::APPROVED)
-            ->willReturnSelf();
-
-        $this->statusCollectionFactory->method('create')->willReturn($statusCollection);
+        $this->statusResolver->expects($this->once())
+            ->method('getIdByCode')
+            ->with(StatusCodes::APPROVED)
+            ->willReturn(2);
 
         $rma = $this->createMock(RMAInterface::class);
         $rma->method('getEntityId')->willReturn(10);
@@ -282,14 +263,7 @@ class RmaSubmitServiceTest extends TestCase
 
         $this->moduleConfig->method('isAutoApproveEnabled')->willReturn(false);
 
-        $statusItem = $this->createMock(\Magenx\Rma\Api\Data\StatusInterface::class);
-        $statusItem->method('getEntityId')->willReturn(1);
-
-        $statusCollection = $this->createMock(\Magenx\Rma\Model\ResourceModel\Status\Collection::class);
-        $statusCollection->method('addFieldToFilter')->willReturnSelf();
-        $statusCollection->method('setPageSize')->willReturnSelf();
-        $statusCollection->method('getFirstItem')->willReturn($statusItem);
-        $this->statusCollectionFactory->method('create')->willReturn($statusCollection);
+        $this->statusResolver->method('getIdByCode')->willReturn(1);
 
         $rma = $this->createMock(RMAInterface::class);
         $rma->method('getEntityId')->willReturn(10);

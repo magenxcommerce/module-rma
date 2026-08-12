@@ -12,9 +12,8 @@ declare(strict_types=1);
 namespace Magenx\Rma\Console\Command;
 
 use Magenx\Rma\Api\Data\RMAInterface;
-use Magenx\Rma\Api\Data\StatusInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
-use Magenx\Rma\Api\StatusRepositoryInterface;
+use Magenx\Rma\Model\RMA\StatusResolver;
 use Magenx\Rma\Model\ResourceModel\Status\CollectionFactory as StatusCollectionFactory;
 use Magento\Framework\Api\FilterBuilder;
 use Magento\Framework\Api\Search\FilterGroupBuilder;
@@ -42,7 +41,7 @@ class ListCommand extends Command
      * @param FilterBuilder $filterBuilder
      * @param FilterGroupBuilder $filterGroupBuilder
      * @param SortOrderBuilder $sortOrderBuilder
-     * @param StatusRepositoryInterface $statusRepository
+     * @param StatusResolver $statusResolver
      * @param StatusCollectionFactory $statusCollectionFactory
      * @param OrderRepositoryInterface $orderRepository
      */
@@ -52,7 +51,7 @@ class ListCommand extends Command
         protected readonly FilterBuilder $filterBuilder,
         protected readonly FilterGroupBuilder $filterGroupBuilder,
         protected readonly SortOrderBuilder $sortOrderBuilder,
-        protected readonly StatusRepositoryInterface $statusRepository,
+        protected readonly StatusResolver $statusResolver,
         protected readonly StatusCollectionFactory $statusCollectionFactory,
         protected readonly OrderRepositoryInterface $orderRepository
     ) {
@@ -104,7 +103,7 @@ class ListCommand extends Command
         // Filter by status code
         $statusCode = $input->getOption(self::OPTION_STATUS);
         if ($statusCode !== null) {
-            $statusId = $this->getStatusIdByCode((string)$statusCode);
+            $statusId = $this->statusResolver->getIdByCode((string)$statusCode);
 
             if ($statusId === null) {
                 $output->writeln(sprintf('<error>Status code "%s" not found.</error>', $statusCode));
@@ -191,21 +190,6 @@ class ListCommand extends Command
         $output->writeln(sprintf('<info>Total: %d RMA(s)</info>', $results->getTotalCount()));
 
         return Cli::RETURN_SUCCESS;
-    }
-
-    /**
-     * @param string $code
-     * @return int|null
-     */
-    protected function getStatusIdByCode(string $code): ?int
-    {
-        $collection = $this->statusCollectionFactory->create();
-        $collection->addFieldToFilter(StatusInterface::CODE, $code);
-        $collection->setPageSize(1);
-
-        $status = $collection->getFirstItem();
-
-        return $status->getEntityId() ? (int)$status->getEntityId() : null;
     }
 
     /**

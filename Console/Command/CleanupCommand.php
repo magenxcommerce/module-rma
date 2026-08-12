@@ -12,10 +12,9 @@ declare(strict_types=1);
 namespace Magenx\Rma\Console\Command;
 
 use Magenx\Rma\Api\Data\RMAInterface;
-use Magenx\Rma\Api\Data\StatusInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Model\RMA\StatusCodes;
-use Magenx\Rma\Model\ResourceModel\Status\CollectionFactory as StatusCollectionFactory;
+use Magenx\Rma\Model\RMA\StatusResolver;
 use Magento\Framework\Api\FilterBuilder;
 use Magento\Framework\Api\Search\FilterGroupBuilder;
 use Magento\Framework\Api\SearchCriteriaBuilder;
@@ -41,14 +40,14 @@ class CleanupCommand extends Command
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      * @param FilterBuilder $filterBuilder
      * @param FilterGroupBuilder $filterGroupBuilder
-     * @param StatusCollectionFactory $statusCollectionFactory
+     * @param StatusResolver $statusResolver
      */
     public function __construct(
         protected readonly RMARepositoryInterface $rmaRepository,
         protected readonly SearchCriteriaBuilder $searchCriteriaBuilder,
         protected readonly FilterBuilder $filterBuilder,
         protected readonly FilterGroupBuilder $filterGroupBuilder,
-        protected readonly StatusCollectionFactory $statusCollectionFactory
+        protected readonly StatusResolver $statusResolver
     ) {
         parent::__construct();
     }
@@ -92,13 +91,13 @@ class CleanupCommand extends Command
         $dryRun = (bool)$input->getOption(self::OPTION_DRY_RUN);
 
         try {
-            $canceledStatusId = $this->getStatusIdByCode(StatusCodes::CANCELED_BY_CUSTOMER);
+            $canceledStatusId = $this->statusResolver->getRequiredIdByCode(StatusCodes::CANCELED_BY_CUSTOMER);
         } catch (LocalizedException $e) {
             $output->writeln('<error>' . $e->getMessage() . '</error>');
             return Cli::RETURN_FAILURE;
         }
 
-        $closedStatusIds = $this->getClosedStatusIds();
+        $closedStatusIds = $this->statusResolver->getIdsByCodes(self::CLOSED_STATUSES);
 
         if (empty($closedStatusIds)) {
             $output->writeln('<error>Could not resolve closed status IDs.</error>');
@@ -170,36 +169,5 @@ class CleanupCommand extends Command
         ));
 
         return Cli::RETURN_SUCCESS;
-    }
-
-    /**
-     * @param string $code
-     * @return int
-     * @throws LocalizedException
-     */
-    protected function getStatusIdByCode(string $code): int
-    {
-        $collection = $this->statusCollectionFactory->create();
-        $collection->addFieldToFilter(StatusInterface::CODE, $code);
-        $collection->setPageSize(1);
-
-        $status = $collection->getFirstItem();
-
-        if (!$status->getEntityId()) {
-            throw new LocalizedException(__('Status with code "%1" not found.', $code));
-        }
-
-        return (int)$status->getEntityId();
-    }
-
-    /**
-     * @return array
-     */
-    protected function getClosedStatusIds(): array
-    {
-        $collection = $this->statusCollectionFactory->create();
-        $collection->addFieldToFilter(StatusInterface::CODE, ['in' => self::CLOSED_STATUSES]);
-
-        return array_values(array_map(fn($status) => (int)$status->getEntityId(), $collection->getItems()));
     }
 }

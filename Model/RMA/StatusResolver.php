@@ -13,6 +13,7 @@ namespace Magenx\Rma\Model\RMA;
 
 use Magenx\Rma\Api\StatusRepositoryInterface;
 use Magento\Framework\Api\SearchCriteriaBuilderFactory;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 
 class StatusResolver
@@ -76,5 +77,45 @@ class StatusResolver
         }
 
         return null;
+    }
+
+    /**
+     * Same as getIdByCode(), but for callers that treat a missing status as fatal
+     * rather than as "nothing to do".
+     *
+     * @param string $code
+     * @return int
+     * @throws LocalizedException
+     */
+    public function getRequiredIdByCode(string $code): int
+    {
+        $id = $this->getIdByCode($code);
+
+        if ($id === null) {
+            throw new LocalizedException(__('Status with code "%1" not found.', $code));
+        }
+
+        return $id;
+    }
+
+    /**
+     * Resolve several codes at once, dropping any that do not exist.
+     *
+     * @param string[] $codes
+     * @return int[]
+     */
+    public function getIdsByCodes(array $codes): array
+    {
+        $ids = [];
+
+        foreach ($codes as $code) {
+            $id = $this->getIdByCode($code);
+
+            if ($id !== null) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 }
