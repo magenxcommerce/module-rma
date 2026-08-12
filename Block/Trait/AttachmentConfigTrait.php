@@ -18,7 +18,7 @@ trait AttachmentConfigTrait
      */
     public function getAllowedExtensions(): string
     {
-        return implode(',', $this->moduleConfig->getAllowedAttachmentExtensions());
+        return implode(',', $this->moduleConfig->getAllowedAttachmentExtensions($this->getAttachmentConfigStoreId()));
     }
 
     /**
@@ -26,7 +26,7 @@ trait AttachmentConfigTrait
      */
     public function getMaxFileSize(): int
     {
-        return $this->moduleConfig->getMaxAttachmentFileSize();
+        return $this->moduleConfig->getMaxAttachmentFileSize($this->getAttachmentConfigStoreId());
     }
 
     /**
@@ -34,6 +34,18 @@ trait AttachmentConfigTrait
      */
     public function getMaxFiles(): int
     {
-        return $this->moduleConfig->getMaxAttachmentFiles();
+        return $this->moduleConfig->getMaxAttachmentFiles($this->getAttachmentConfigStoreId());
+    }
+
+    /**
+     * Store the attachment limits should be read for. Defaults to the default scope;
+     * consumers that know which RMA is on screen override this so a website-level
+     * override of the `attachments` group is actually honoured.
+     *
+     * @return int
+     */
+    protected function getAttachmentConfigStoreId(): int
+    {
+        return 0;
     }
 }

@@ -76,7 +76,12 @@ class Save extends BaseController implements HttpPostActionInterface
 
             try {
                 $attachmentsJson = (string)$this->getRequest()->getParam('attachments', '');
-                $this->attachmentService->saveFromJson($attachmentsJson, $rmaId, (int)$comment->getEntityId());
+                $this->attachmentService->saveFromJson(
+                    $attachmentsJson,
+                    $rmaId,
+                    (int)$comment->getEntityId(),
+                    $this->resolveStoreId($rmaId)
+                );
             } catch (LocalizedException $e) {
                 $responseData['attachment_error'] = $e->getMessage();
             }
@@ -86,6 +91,22 @@ class Save extends BaseController implements HttpPostActionInterface
             return $result->setData($responseData);
         } catch (Exception $e) {
             return $result->setData(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Store the attachment limits should be enforced against — the RMA's own, so a
+     * website-level override of the `attachments` group is honoured here too.
+     *
+     * @param int $rmaId
+     * @return int
+     */
+    protected function resolveStoreId(int $rmaId): int
+    {
+        try {
+            return (int)$this->rmaRepository->get($rmaId)->getStoreId();
+        } catch (NoSuchEntityException) {
+            return 0;
         }
     }
 

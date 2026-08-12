@@ -14,13 +14,12 @@ namespace Magenx\Rma\Service;
 use Magento\Framework\Event\ManagerInterface as EventManagerInterface;
 use Magenx\Rma\Api\Data\RMAInterface;
 use Magenx\Rma\Api\Data\RMAInterfaceFactory;
-use Magenx\Rma\Api\Data\StatusInterface;
 use Magenx\Rma\Api\ItemRepositoryInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\ItemFactory;
 use Magenx\Rma\Model\RMA\StatusCodes;
-use Magenx\Rma\Model\ResourceModel\Status\CollectionFactory as StatusCollectionFactory;
+use Magenx\Rma\Model\RMA\StatusResolver;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\LocalizedException;
@@ -34,7 +33,7 @@ class RmaSubmitService
      * @param RMAInterfaceFactory $rmaFactory
      * @param ItemFactory $itemFactory
      * @param ItemRepositoryInterface $itemRepository
-     * @param StatusCollectionFactory $statusCollectionFactory
+     * @param StatusResolver $statusResolver
      * @param ModuleConfig $moduleConfig
      * @param AttachmentService $attachmentService
      * @param OrderEligibility $orderEligibility
@@ -45,7 +44,7 @@ class RmaSubmitService
         protected readonly RMAInterfaceFactory $rmaFactory,
         protected readonly ItemFactory $itemFactory,
         protected readonly ItemRepositoryInterface $itemRepository,
-        protected readonly StatusCollectionFactory $statusCollectionFactory,
+        protected readonly StatusResolver $statusResolver,
         protected readonly ModuleConfig $moduleConfig,
         protected readonly AttachmentService $attachmentService,
         protected readonly OrderEligibility $orderEligibility,
@@ -114,7 +113,7 @@ class RmaSubmitService
         $statusCode = $this->moduleConfig->isAutoApproveEnabled($storeId)
             ? StatusCodes::APPROVED
             : StatusCodes::NEW_REQUEST;
-        $statusId = $this->getStatusIdByCode($statusCode);
+        $statusId = $this->statusResolver->getIdByCode($statusCode);
 
         if (!$statusId) {
             throw new LocalizedException(__('Could not determine the initial RMA status.'));
@@ -137,7 +136,7 @@ class RmaSubmitService
             $this->rmaRepository->save($rma);
             $rmaId = (int)$rma->getEntityId();
             $this->saveItems($rmaId, $selectedItems, $order);
-            $this->attachmentService->saveFromJson($attachmentsJson, $rmaId);
+            $this->attachmentService->saveFromJson($attachmentsJson, $rmaId, null, $storeId);
             $connection->commit();
             $this->eventManager->dispatch('rma_commit_after', ['rma' => $rma]);
         } catch (Throwable $e) {
@@ -183,19 +182,5 @@ class RmaSubmitService
             $item->setConditionId($itemData['condition_id']);
             $this->itemRepository->save($item);
         }
-    }
-
-    /**
-     * @param string $code
-     * @return int|null
-     */
-    protected function getStatusIdByCode(string $code): ?int
-    {
-        $collection = $this->statusCollectionFactory->create();
-        $collection->addFieldToFilter(StatusInterface::CODE, $code);
-        $collection->setPageSize(1);
-
-        $status = $collection->getFirstItem();
-        return $status->getEntityId() ? (int)$status->getEntityId() : null;
     }
 }

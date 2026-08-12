@@ -19,6 +19,7 @@ define([
             maxFileSize = (config.maxFileSize || 10) * 1024 * 1024,
             maxFiles = config.maxFiles || 5,
             formKey = config.formKey || '',
+            rmaId = config.rmaId || 0,
             uploadedFiles = [],
             $container = $(element),
             $dropZone = $container.find('.rma-upload-dropzone'),
@@ -51,6 +52,12 @@ define([
             let formData = new FormData();
             formData.append('attachment', file);
             formData.append('form_key', formKey);
+
+            // Lets the controller enforce the same store-scoped limits this widget
+            // was configured with, rather than the default-scope ones.
+            if (rmaId) {
+                formData.append('rma_id', rmaId);
+            }
 
             let $progress = $('<div class="rma-upload-item uploading">')
                 .text($t('Uploading %1...').replace('%1', file.name));

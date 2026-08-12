@@ -22,6 +22,10 @@
             <module name="Magento_Config"/>
             <module name="Magento_Ui"/>
             <module name="Magento_Webapi"/>
+            <!-- Service\Email\Sender pulls product thumbnails through Magento_Catalog,
+                 and Service\AttachmentService uploads through Magento_MediaStorage. -->
+            <module name="Magento_Catalog"/>
+            <module name="Magento_MediaStorage"/>
         </sequence>
     </module>
 </config>

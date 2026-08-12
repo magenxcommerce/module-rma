@@ -198,36 +198,56 @@ class ModuleConfig
     }
 
     /**
+     * The three attachment getters below read at store scope like every other getter in
+     * this class. They previously read the default scope only, which silently discarded
+     * the website-level overrides the `attachments` group declares (showInWebsite="1").
+     *
+     * @param int $storeId
      * @return array
      */
-    public function getAllowedAttachmentExtensions(): array
+    public function getAllowedAttachmentExtensions(int $storeId = 0): array
     {
-        $value = (string)$this->scopeConfig->getValue(self::XML_PATH_ALLOWED_EXTENSIONS);
+        $value = (string)$this->scopeConfig->getValue(
+            self::XML_PATH_ALLOWED_EXTENSIONS,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
 
         return $value !== '' ? array_map('trim', explode(',', strtolower($value))) : [];
     }
 
     /**
+     * @param int $storeId
      * @return int
      */
-    public function getMaxAttachmentFileSize(): int
+    public function getMaxAttachmentFileSize(int $storeId = 0): int
     {
-        return max(1, (int)$this->scopeConfig->getValue(self::XML_PATH_MAX_FILE_SIZE));
+        return max(1, (int)$this->scopeConfig->getValue(
+            self::XML_PATH_MAX_FILE_SIZE,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        ));
     }
 
     /**
+     * @param int $storeId
      * @return int
      */
-    public function getMaxAttachmentFileSizeBytes(): int
+    public function getMaxAttachmentFileSizeBytes(int $storeId = 0): int
     {
-        return $this->getMaxAttachmentFileSize() * 1024 * 1024;
+        return $this->getMaxAttachmentFileSize($storeId) * 1024 * 1024;
     }
 
     /**
+     * @param int $storeId
      * @return int
      */
-    public function getMaxAttachmentFiles(): int
+    public function getMaxAttachmentFiles(int $storeId = 0): int
     {
-        return max(1, (int)$this->scopeConfig->getValue(self::XML_PATH_MAX_FILES));
+        return max(1, (int)$this->scopeConfig->getValue(
+            self::XML_PATH_MAX_FILES,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        ));
     }
 }

@@ -111,6 +111,7 @@ $deleteUrl = $block->getDeleteUrl();
                  "allowedExtensions": "<?= $escaper->escapeHtmlAttr($block->getAllowedExtensions()) ?>",
                  "maxFileSize": <?= (int)$block->getMaxFileSize() ?>,
                  "maxFiles": <?= (int)$block->getMaxFiles() ?>,
+                 "rmaId": <?= (int)$rmaId ?>,
                  "formKey": "<?= $escaper->escapeJs($block->getFormKey()) ?>"
              }}'>
             <div class="rma-upload-dropzone" style="border: 2px dashed #ccc; border-radius: 4px; padding: 12px; text-align: center; cursor: pointer; background: #fafafa;">

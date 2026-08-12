@@ -18,6 +18,7 @@ use Magenx\Rma\Service\AttachmentService;
 use Magenx\Rma\Service\CommentFormatter;
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
+use Magento\Framework\Exception\NoSuchEntityException;
 
 class Comments extends Template
 {
@@ -27,6 +28,13 @@ class Comments extends Template
      * @var string
      */
     protected $_template = 'Magenx_Rma::rma/edit/comments.phtml';
+
+    /**
+     * Memoised so rendering the upload widget costs at most one RMA load.
+     *
+     * @var int|null
+     */
+    private ?int $attachmentConfigStoreId = null;
 
     /**
      * @param Context $context
@@ -53,6 +61,31 @@ class Comments extends Template
     public function getRmaId(): int
     {
         return (int)$this->getRequest()->getParam('entity_id');
+    }
+
+    /**
+     * Read the attachment limits against the RMA's own store, so a website-level
+     * override of the `attachments` config group reaches the upload widget.
+     *
+     * @return int
+     */
+    protected function getAttachmentConfigStoreId(): int
+    {
+        if ($this->attachmentConfigStoreId !== null) {
+            return $this->attachmentConfigStoreId;
+        }
+
+        $rmaId = $this->getRmaId();
+
+        if (!$rmaId) {
+            return $this->attachmentConfigStoreId = 0;
+        }
+
+        try {
+            return $this->attachmentConfigStoreId = (int)$this->rmaRepository->get($rmaId)->getStoreId();
+        } catch (NoSuchEntityException) {
+            return $this->attachmentConfigStoreId = 0;
+        }
     }
 
     /**
