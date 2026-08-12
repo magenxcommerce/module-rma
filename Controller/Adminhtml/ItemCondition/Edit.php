@@ -14,7 +14,7 @@ namespace Magenx\Rma\Controller\Adminhtml\ItemCondition;
 use Magenx\Rma\Api\ItemConditionRepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\AbstractLookupEdit;
 use Magento\Backend\App\Action\Context;
-use Magento\Framework\View\Result\PageFactory;
+use Magento\Backend\Model\View\Result\PageFactory;
 
 class Edit extends AbstractLookupEdit
 {

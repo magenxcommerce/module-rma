@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace Magenx\Rma\Block\Adminhtml\Rma\Edit;
 
 use Magenx\Rma\Api\ItemConditionRepositoryInterface;
-use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Model\ResourceModel\Item\CollectionFactory as ItemCollectionFactory;
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
@@ -28,7 +27,6 @@ class OrderItems extends Template
 
     /**
      * @param Context $context
-     * @param RMARepositoryInterface $rmaRepository
      * @param ItemCollectionFactory $itemCollectionFactory
      * @param OrderItemRepositoryInterface $orderItemRepository
      * @param ItemConditionRepositoryInterface $itemConditionRepository
@@ -36,7 +34,6 @@ class OrderItems extends Template
      */
     public function __construct(
         Context $context,
-        protected readonly RMARepositoryInterface $rmaRepository,
         protected readonly ItemCollectionFactory $itemCollectionFactory,
         protected readonly OrderItemRepositoryInterface $orderItemRepository,
         protected readonly ItemConditionRepositoryInterface $itemConditionRepository,

@@ -14,12 +14,8 @@ namespace Magenx\Rma\Test\Unit\Service;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\ResourceModel\Item\CollectionFactory as RmaItemCollectionFactory;
 use Magenx\Rma\Service\OrderEligibility;
-use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
-use Magento\Sales\Api\OrderRepositoryInterface;
-use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
-use Magento\Store\Model\StoreManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -27,19 +23,11 @@ class OrderEligibilityTest extends TestCase
 {
     private ModuleConfig&MockObject $moduleConfig;
     private RmaItemCollectionFactory&MockObject $rmaItemCollectionFactory;
-    private OrderCollectionFactory&MockObject $orderCollectionFactory;
-    private OrderRepositoryInterface&MockObject $orderRepository;
-    private TimezoneInterface&MockObject $timezone;
-    private StoreManagerInterface&MockObject $storeManager;
 
     protected function setUp(): void
     {
         $this->moduleConfig = $this->createMock(ModuleConfig::class);
         $this->rmaItemCollectionFactory = $this->createMock(RmaItemCollectionFactory::class);
-        $this->orderCollectionFactory = $this->createMock(OrderCollectionFactory::class);
-        $this->orderRepository = $this->createMock(OrderRepositoryInterface::class);
-        $this->timezone = $this->createMock(TimezoneInterface::class);
-        $this->storeManager = $this->createMock(StoreManagerInterface::class);
     }
 
     private function createService(array $stubbedMethods = []): OrderEligibility
@@ -47,11 +35,7 @@ class OrderEligibilityTest extends TestCase
         if (empty($stubbedMethods)) {
             return new OrderEligibility(
                 $this->moduleConfig,
-                $this->rmaItemCollectionFactory,
-                $this->orderCollectionFactory,
-                $this->orderRepository,
-                $this->timezone,
-                $this->storeManager
+                $this->rmaItemCollectionFactory
             );
         }
 
@@ -59,10 +43,6 @@ class OrderEligibilityTest extends TestCase
             ->setConstructorArgs([
                 $this->moduleConfig,
                 $this->rmaItemCollectionFactory,
-                $this->orderCollectionFactory,
-                $this->orderRepository,
-                $this->timezone,
-                $this->storeManager,
             ])
             ->onlyMethods($stubbedMethods)
             ->getMock();

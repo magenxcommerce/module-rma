@@ -82,7 +82,9 @@ abstract class AbstractLookupMassDelete extends Action implements HttpPostAction
 
         if ($deleted) {
             $this->messageManager->addSuccessMessage(
-                __('A total of %1 record(s) have been deleted.', $deleted)
+                $this->entityName !== ''
+                    ? __('A total of %1 %2(s) have been deleted.', $deleted, $this->entityName)
+                    : __('A total of %1 record(s) have been deleted.', $deleted)
             );
         }
 

@@ -157,6 +157,12 @@ class RMARepository implements RMARepositoryInterface
     }
 
     /**
+     * rma_created_after has no observer inside this module, by design: it is the
+     * extension point for integrations that want every creation path, including the
+     * admin grid and POST /V1/rma. The module's own new-RMA e-mails instead listen on
+     * rma_commit_after, which only RmaSubmitService::createRma() dispatches — so
+     * admin- and REST-created RMAs send no notification. See etc/events.xml.
+     *
      * @param RMAInterface $rma
      * @param bool $isNew
      * @param int|null $oldStatusId

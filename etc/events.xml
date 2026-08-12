@@ -6,6 +6,18 @@
 
     Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
     identifiers renamed, GraphQL surface split into a sibling module.
+
+    New-RMA e-mails hang off rma_commit_after, which RmaSubmitService::createRma()
+    dispatches once its transaction has committed — i.e. the customer-initiated
+    (GraphQL) create-return flow. This is deliberate: RMAs opened by an admin from
+    Sales > RMA, or through POST /V1/rma, do NOT notify the customer or the admin
+    recipient, because those paths save through RMARepository directly.
+
+    RMARepository also dispatches rma_created_after on every insert, and nothing in
+    this module subscribes to it. That is intentional too — it is left as the
+    extension point for integrations that DO want to observe every creation path.
+    Subscribing SendNewRmaEmails to it as well would make the GraphQL flow fire
+    both events and send twice.
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
     <event name="rma_commit_after">

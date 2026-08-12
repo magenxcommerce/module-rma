@@ -11,33 +11,19 @@ declare(strict_types=1);
 
 namespace Magenx\Rma\Service;
 
-use Magento\Sales\Model\ResourceModel\Order\Collection;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\ResourceModel\Item\CollectionFactory as RmaItemCollectionFactory;
-use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
 use Magento\Sales\Api\Data\OrderInterface;
-use Magento\Sales\Api\OrderRepositoryInterface;
-use Magento\Sales\Model\ResourceModel\Order\CollectionFactory as OrderCollectionFactory;
-use Magento\Store\Model\StoreManagerInterface;
-use Magento\Framework\Exception\NoSuchEntityException;
 
 class OrderEligibility
 {
     /**
      * @param ModuleConfig $moduleConfig
      * @param RmaItemCollectionFactory $rmaItemCollectionFactory
-     * @param OrderCollectionFactory $orderCollectionFactory
-     * @param OrderRepositoryInterface $orderRepository
-     * @param TimezoneInterface $timezone
-     * @param StoreManagerInterface $storeManager
      */
     public function __construct(
         protected readonly ModuleConfig $moduleConfig,
-        protected readonly RmaItemCollectionFactory $rmaItemCollectionFactory,
-        protected readonly OrderCollectionFactory $orderCollectionFactory,
-        protected readonly OrderRepositoryInterface $orderRepository,
-        protected readonly TimezoneInterface $timezone,
-        protected readonly StoreManagerInterface $storeManager
+        protected readonly RmaItemCollectionFactory $rmaItemCollectionFactory
     ) {
     }
 
@@ -108,36 +94,6 @@ class OrderEligibility
     }
 
     /**
-     * @param int $customerId
-     * @param int $storeId
-     * @return Collection
-     * @throws NoSuchEntityException
-     */
-    public function getCustomerEligibleOrders(int $customerId, int $storeId): Collection
-    {
-        $allowedStatuses = $this->moduleConfig->getAllowedOrderStatuses($storeId);
-        $returnPeriod = $this->moduleConfig->getReturnPeriod($storeId);
-
-        $storeIds = $this->getStoreIdsForWebsite($storeId);
-
-        $collection = $this->orderCollectionFactory->create();
-        $collection->addFieldToFilter('customer_id', $customerId);
-        $collection->addFieldToFilter('store_id', ['in' => $storeIds]);
-
-        if (!empty($allowedStatuses)) {
-            $collection->addFieldToFilter('status', ['in' => $allowedStatuses]);
-        }
-
-        if ($returnPeriod > 0) {
-            $cutoffDate = date('Y-m-d H:i:s', strtotime("-{$returnPeriod} days"));
-            $collection->addFieldToFilter('created_at', ['gteq' => $cutoffDate]);
-        }
-        $collection->setOrder('created_at', 'desc');
-
-        return $collection;
-    }
-
-    /**
      * @param OrderInterface $order
      * @return bool
      */
@@ -154,26 +110,6 @@ class OrderEligibility
         $cutoffDate = strtotime("-{$returnPeriod} days");
 
         return $orderDate >= $cutoffDate;
-    }
-
-    /**
-     * @param int $storeId
-     * @return int[]
-     * @throws NoSuchEntityException
-     */
-    protected function getStoreIdsForWebsite(int $storeId): array
-    {
-        $store = $this->storeManager->getStore($storeId);
-        $websiteId = (int)$store->getWebsiteId();
-        $storeIds = array_map(
-            fn($s) => (int)$s->getId(),
-            array_filter(
-                $this->storeManager->getStores(),
-                fn($s) => (int)$s->getWebsiteId() === $websiteId
-            )
-        );
-
-        return $storeIds ?: [$storeId];
     }
 
     /**

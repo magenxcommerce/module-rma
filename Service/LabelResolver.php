@@ -45,25 +45,6 @@ class LabelResolver
      * @param string $type
      * @param int $entityId
      * @param int|null $storeId
-     * @return string
-     */
-    public function resolve(string $type, int $entityId, ?int $storeId = null): string
-    {
-        $storeId ??= $this->getCurrentStoreId();
-
-        try {
-            $entity = $this->loadEntity($type, $entityId);
-
-            return (string)__($entity->getStoreLabel($storeId));
-        } catch (NoSuchEntityException) {
-            return '';
-        }
-    }
-
-    /**
-     * @param string $type
-     * @param int $entityId
-     * @param int|null $storeId
      * @return array|null
      */
     public function resolveAsArray(string $type, int $entityId, ?int $storeId = null): ?array
