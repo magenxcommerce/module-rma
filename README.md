@@ -426,3 +426,19 @@ Status codes are defined as constants in `Model\RMA\StatusCodes`:
 | `RECEIVED_BY_ADMIN` | `received_by_admin` |
 | `CANCELED_BY_CUSTOMER` | `canceled_by_customer` |
 | `RESOLVED` | `resolved` |
+
+## Tests
+
+The unit suite runs against the module in place, so it needs the `magento/*`
+packages its subjects reference:
+
+```bash
+composer install
+vendor/bin/phpunit
+```
+
+`Test/Unit/bootstrap.php` stands in for the two things an installed Magento
+application would already have done: it loads Composer's autoloader, and it
+registers Magento's code generator so the `*Factory` classes that DI normally
+compiles into `generated/code` exist for the tests that mock them. Generated
+classes are written under the system temp directory, never into the repository.

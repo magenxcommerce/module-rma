@@ -2,7 +2,10 @@
     "name": "magenxcommerce/module-rma",
     "description": "Return Merchandise Authorization: RMA requests, statuses, reasons, resolution types, item conditions, comments and attachments. Forked from mage-os/module-rma 2.4.1 (MIT).",
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "allow-plugins": {
+            "magento/composer-dependency-version-audit-plugin": true
+        }
     },
     "require": {
         "php": "~8.3.0||~8.4.0||~8.5.0",
@@ -16,6 +19,9 @@
         "magento/module-store": "*",
         "magento/module-ui": "*",
         "magento/module-webapi": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
     },
     "type": "magento2-module",
     "license": [

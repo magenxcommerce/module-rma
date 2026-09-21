@@ -21,3 +21,9 @@ jobs:
     # required status checks in a way that a trigger-level filter would not.
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     uses: magenxcommerce/workflows/.github/workflows/php-module-ci.yml@main
+    # The PHPUnit job installs magento/* from repo.magento.com, which needs the
+    # Marketplace key pair. The shared workflow declares MAGENTO_PUBLIC_KEY and
+    # MAGENTO_PRIVATE_KEY as optional secrets and names them to match ours, so
+    # inheriting is all that is required; without them composer resolves nothing
+    # and the suite runs against a missing framework.
+    secrets: inherit
