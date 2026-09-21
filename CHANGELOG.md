@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/magenxcommerce/module-rma/compare/v1.0.1...v1.0.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* inject the framework PageFactory so RMA admin pages render ([#8](https://github.com/magenxcommerce/module-rma/issues/8)) ([343d38e](https://github.com/magenxcommerce/module-rma/commit/343d38e4bc98e4d08d97a7aadc7895d0eb752720))
+
 ## [1.0.1](https://github.com/magenxcommerce/module-rma/compare/v1.0.0...v1.0.1) (2026-08-12)
 
 
