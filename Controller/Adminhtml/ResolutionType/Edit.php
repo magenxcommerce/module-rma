@@ -14,7 +14,7 @@ namespace Magenx\Rma\Controller\Adminhtml\ResolutionType;
 use Magenx\Rma\Api\ResolutionTypeRepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\AbstractLookupEdit;
 use Magento\Backend\App\Action\Context;
-use Magento\Backend\Model\View\Result\PageFactory;
+use Magento\Framework\View\Result\PageFactory;
 
 class Edit extends AbstractLookupEdit
 {

@@ -17,7 +17,7 @@ use Magento\Framework\App\ResponseInterface;
 use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultInterface;
 use Magento\Backend\Model\View\Result\Page;
-use Magento\Backend\Model\View\Result\PageFactory;
+use Magento\Framework\View\Result\PageFactory;
 use Magento\Framework\Exception\NoSuchEntityException;
 
 abstract class AbstractLookupEdit extends AbstractLookupController implements HttpGetActionInterface
@@ -75,6 +75,7 @@ abstract class AbstractLookupEdit extends AbstractLookupController implements Ht
             }
         }
 
+        /** @var Page $resultPage */
         $resultPage = $this->resultPageFactory->create();
         $this->initPage($resultPage);
 

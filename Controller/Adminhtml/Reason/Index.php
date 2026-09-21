@@ -15,7 +15,7 @@ use Magento\Framework\App\Action\HttpGetActionInterface;
 use Magento\Backend\Model\View\Result\Page;
 use Magenx\Rma\Controller\Adminhtml\Reason as BaseController;
 use Magento\Backend\App\Action\Context;
-use Magento\Backend\Model\View\Result\PageFactory;
+use Magento\Framework\View\Result\PageFactory;
 use Magento\Framework\App\ResponseInterface;
 use Magento\Framework\Controller\ResultInterface;
 
@@ -37,6 +37,7 @@ class Index extends BaseController implements HttpGetActionInterface
      */
     public function execute(): Page|ResultInterface|ResponseInterface
     {
+        /** @var Page $resultPage */
         $resultPage = $this->resultPageFactory->create();
         $this->initPage($resultPage)->getConfig()->getTitle()->prepend(__('RMA Reasons'));
 

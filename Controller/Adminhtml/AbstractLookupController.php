@@ -27,6 +27,13 @@ abstract class AbstractLookupController extends Action
     abstract protected function getBreadcrumbLabel(): string;
 
     /**
+     * Apply the shared admin chrome (active menu + breadcrumbs) to a result page.
+     *
+     * The page must come from Magento\Framework\View\Result\PageFactory: only that
+     * factory calls addDefaultHandle(), which loads the "default" layout handle that
+     * declares the admin "menu" block. A page built by any other factory has no menu
+     * block, and setActiveMenu() then fatals on false.
+     *
      * @param Page $resultPage
      * @return Page
      */

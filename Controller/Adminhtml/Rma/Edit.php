@@ -17,7 +17,7 @@ use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\Rma as BaseController;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\Exception\NoSuchEntityException;
-use Magento\Backend\Model\View\Result\PageFactory;
+use Magento\Framework\View\Result\PageFactory;
 use Magento\Framework\App\ResponseInterface;
 use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultInterface;
@@ -44,6 +44,7 @@ class Edit extends BaseController implements HttpGetActionInterface
     {
         $id = (int)$this->getRequest()->getParam('entity_id');
 
+        /** @var Page $resultPage */
         $resultPage = $this->resultPageFactory->create();
         $this->initPage($resultPage);
 
