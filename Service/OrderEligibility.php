@@ -208,7 +208,7 @@ class OrderEligibility
      * @param OrderItemInterface $orderItem
      * @return bool
      */
-    protected function isReturnableType(OrderItemInterface $orderItem): bool
+    public function isReturnableType(OrderItemInterface $orderItem): bool
     {
         if ($orderItem->getParentItemId()) {
             return false;

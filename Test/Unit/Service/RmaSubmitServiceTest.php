@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: covers the initial status and prepare arguments of createRma().
  */
 declare(strict_types=1);
 
@@ -253,6 +254,76 @@ class RmaSubmitServiceTest extends TestCase
             resolutionTypeId: 1,
             selectedItems: []
         );
+    }
+
+    public function testCreateRmaInitialStatusOverridesAutoApprove(): void
+    {
+        $order = $this->createMock(OrderInterface::class);
+        $order->method('getStoreId')->willReturn(1);
+        $order->method('getEntityId')->willReturn(100);
+
+        $this->moduleConfig->expects($this->never())->method('isAutoApproveEnabled');
+        $this->statusResolver->expects($this->once())
+            ->method('getIdByCode')
+            ->with(StatusCodes::NEW_REQUEST)
+            ->willReturn(1);
+
+        $rma = $this->createMock(RMAInterface::class);
+        $rma->method('getEntityId')->willReturn(10);
+        $this->rmaFactory->method('create')->willReturn($rma);
+        $this->orderEligibility->method('getEligibleItems')->willReturn([]);
+
+        $this->service->createRma(
+            order: $order,
+            customerId: 1,
+            customerEmail: 'test@example.com',
+            customerName: 'Test User',
+            reasonId: 1,
+            resolutionTypeId: 1,
+            selectedItems: [],
+            initialStatusCode: StatusCodes::NEW_REQUEST
+        );
+    }
+
+    public function testCreateRmaRunsPrepareBeforeSaveAndCommitEvent(): void
+    {
+        $order = $this->createMock(OrderInterface::class);
+        $order->method('getStoreId')->willReturn(1);
+        $order->method('getEntityId')->willReturn(100);
+
+        $this->moduleConfig->method('isAutoApproveEnabled')->willReturn(false);
+        $this->statusResolver->method('getIdByCode')->willReturn(1);
+
+        $rma = $this->createMock(RMAInterface::class);
+        $rma->method('getEntityId')->willReturn(10);
+        $this->rmaFactory->method('create')->willReturn($rma);
+        $this->orderEligibility->method('getEligibleItems')->willReturn([]);
+
+        $calls = [];
+        $rma->method('setHelpdeskTicketCode')->willReturnCallback(function () use (&$calls, $rma) {
+            $calls[] = 'prepare';
+            return $rma;
+        });
+        $this->rmaRepository->method('save')->willReturnCallback(function () use (&$calls, $rma) {
+            $calls[] = 'save';
+            return $rma;
+        });
+        $this->eventManager->method('dispatch')->willReturnCallback(function (string $event) use (&$calls) {
+            $calls[] = $event;
+        });
+
+        $this->service->createRma(
+            order: $order,
+            customerId: 1,
+            customerEmail: 'test@example.com',
+            customerName: 'Test User',
+            reasonId: 1,
+            resolutionTypeId: 1,
+            selectedItems: [],
+            prepare: fn(RMAInterface $created) => $created->setHelpdeskTicketCode('TX-1')
+        );
+
+        $this->assertSame(['prepare', 'save', 'rma_commit_after'], $calls);
     }
 
     public function testCreateRmaRollsBackTransactionOnException(): void

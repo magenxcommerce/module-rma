@@ -1,7 +1,7 @@
 # Right of withdrawal (EU) — RMA support
 
-Status: **in progress** — W1–W3 implemented on `claude/withdrawal-support`;
-W4 onward still planned. This document records what
+Status: **in progress** — W1–W5 implemented on `claude/withdrawal-support`;
+W6 onward still planned. This document records what
 blocks the module from carrying an EU consumer withdrawal today, and the work
 needed in `Magenx_Rma` and `Magenx_RmaGraphQl` to close the gap.
 
@@ -47,7 +47,7 @@ References are to `main` at release 1.0.2 (`Magenx_Rma`) and the matching
 
 | # | Blocker | Where | Effect |
 |---|---|---|---|
-| G1 | Guest create only finds guest orders | `Model/Resolver/GuestOrderLookupTrait.php:45` (`customer_is_guest = 1`) | A registered customer who is logged out cannot withdraw by order number + email. Deliberate for return privacy; the withdrawal path needs a different rule (see W6). |
+| G1 | Guest create only finds guest orders | `Model/Resolver/GuestOrderLookupTrait.php:45` (`customer_is_guest = 1`) | A registered customer who is logged out cannot withdraw by order number + email. Deliberate for return privacy; the withdrawal path needs a different rule (see W10). |
 | G2 | Eligibility failure is one opaque message | `CreateCustomerReturn.php:85-86`, `CreateGuestReturn.php:73-74` | "This order is not eligible for a return." The withdrawal flow cannot tell "late", "not shipped" and "nothing left to return" apart, so it cannot pick cancel vs RMA vs staff review. |
 | G3 | `reason_id` / `resolution_type_id` only checked for non-zero | `Service/RmaSubmitService.php:107` | An inactive reason id is accepted. Not a withdrawal blocker by itself, but the withdrawal path must set these server-side, never from client input. |
 | G4 | Guests cannot comment | `Model/Resolver/AddReturnComment.php` (customer-only) | A guest who withdrew cannot send a tracking number back through the API; it has to go through the ticket by email. |
@@ -104,42 +104,56 @@ Order matters: W1–W3 are prerequisites for everything else.
 - Behaviour change for ordinary returns: an item can no longer be requested
   beyond what was shipped, and refunded or canceled qty is no longer returnable.
 
-**W4 — Withdrawal eligibility**
-- New `Service/WithdrawalEligibility.php`, separate from `OrderEligibility`:
-  - period = 14 days from the **last shipment's** `created_at` (the closest
-    signal Magento has to receipt; add a config for extra transit days),
-  - ignores `allowed_order_statuses` (E2): any order with shipped qty qualifies,
-  - never throws for "late": returns `late=true` so the RMA is created and
-    flagged for staff review.
-- Config: `rma/withdrawal/enabled`, `rma/withdrawal/period_days` (14),
-  `rma/withdrawal/transit_days` (0), `rma/withdrawal/auto_approve` (1).
-  Follow the `magento-admin-config` skill in the storefront repo for placement.
+**W4 — Withdrawal eligibility** — done (`Service/WithdrawalEligibility.php`)
+- Deadline = end of day (UTC) of last shipment `created_at` +
+  `transit_days` + `period_days`. The last shipment, because the period for an
+  order delivered in several parcels starts with the last one. No shipment
+  means the period has not started, so nothing is late.
+- Order date and order status play no part (E1, E2).
+- Never refuses: `isLate()` only flags.
+- Config group **Stores > Configuration > Sales > RMA - Return Management >
+  Right of Withdrawal (EU)**: `rma/withdrawal/enabled` (0),
+  `period_days` (14), `transit_days` (0), `auto_approve` (1); read through
+  `Helper/ModuleConfig`. `isWithdrawalEnabled()` also requires `rma/general/enabled`.
 
-**W5 — `Service/WithdrawalService.php`**
-
-Single entry point, called by the GraphQL resolver (W6) after the helpdesk
-ticket exists:
+**W5 — `Service/WithdrawalService.php`** — done
 
 ```
-submit(order, items[], ticketCode, declaredAt): WithdrawalResult
+submit(OrderInterface $order, array $items, string $ticketCode, string $declaredAt): WithdrawalResult
 ```
 
-- Split the requested items: shipped qty → RMA, unshipped qty → cancel.
-- Shipped part: `RmaSubmitService::createRma()` with reason `withdrawal`,
-  resolution `refund`, status `approved` when `rma/withdrawal/auto_approve`,
-  then set the W2 columns. Going through `createRma()` keeps F8 emails.
-- Unshipped part: cancel the order when nothing has shipped; otherwise do not
-  partially cancel automatically (Magento has no clean per-item cancel). Flag
-  it for staff in the RMA/ticket.
-- Never throws for a business condition; returns what was done
-  (`rma_increment_id`, `canceled`, `needs_review`, `late`).
+Called by the submit mutation (W11) after the helpdesk ticket exists.
+`$items` is order item id => qty; empty means the whole order.
+
+- Idempotent per ticket: a second call with the same ticket code returns the
+  existing withdrawal RMA (`duplicate = true`).
+- Per item, requested qty goes first to what the customer holds
+  (`OrderEligibility` returnable qty minus open RMAs), then to qty not shipped
+  yet; anything beyond is `qty_exceeds`.
+- Held qty: one RMA via `RmaSubmitService::createRma()` (so the new-RMA emails
+  fire), reason `withdrawal`, resolution `refund`, W2 fields set inside the
+  same transaction through the new `prepare` callback. Status `approved` when
+  `auto_approve`, `new_request` when late or auto-approve is off.
+- Not shipped: when nothing of the order has shipped, the declaration covers
+  every open unit and `Order::canCancel()` allows it, the order is canceled via
+  `OrderManagementInterface::cancel()`. Anything else is `unshipped` for staff
+  (Magento has no per-item cancel; an invoiced order needs a credit memo).
+- Never throws for business conditions. `WithdrawalResult` carries
+  `rma`, `orderCanceled`, `late`, `returnQty`, `unshippedQty`, `duplicate` and
+  `reviewReasons` (`disabled`, `late`, `unshipped`, `cancel_failed`,
+  `qty_exceeds`, `unknown_item`, `nothing_to_do`, `rma_failed`). When an RMA
+  exists and there are reasons, a staff-only comment lists them on the RMA.
+- Note for W7: an RMA created already `approved` fires `rma_created_after`
+  and `rma_commit_after`, not `rma_approved_after` (that only fires on a
+  status change). The label observer must listen to both.
 
 **W6 — Status workflow guard (F3)**
 - Plugin on `RMARepository::save()`: when `is_withdrawal=1`, refuse
   `rejected`; allow `canceled_by_customer` only from `new_request`/`approved`.
 
 **W7 — Return label (F4)**
-- Observer on `rma_approved_after` for withdrawal RMAs.
+- Observer on `rma_approved_after` and on `rma_commit_after` (for RMAs
+  created already approved) for withdrawal RMAs.
 - `Api/ReturnLabelProviderInterface` with a `null` default implementation
   (emails return instructions via a new `rma_withdrawal_instructions` template).
 - Carrier-specific provider in a separate module, chosen in config. It stores

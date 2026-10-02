@@ -6,6 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: createRma() takes an initial status and a callback that
+ * fills extra RMA fields before the save.
  */
 declare(strict_types=1);
 
@@ -89,6 +91,9 @@ class RmaSubmitService
      * @param int $resolutionTypeId
      * @param array $selectedItems
      * @param string $attachmentsJson
+     * @param string|null $initialStatusCode Overrides the auto-approve setting when given
+     * @param callable|null $prepare Receives the unsaved RMA, to set fields such as the
+     *        withdrawal data inside the same transaction and before rma_commit_after fires
      * @return RMAInterface
      * @throws CouldNotSaveException
      * @throws LocalizedException
@@ -102,7 +107,9 @@ class RmaSubmitService
         int $reasonId,
         int $resolutionTypeId,
         array $selectedItems,
-        string $attachmentsJson = ''
+        string $attachmentsJson = '',
+        ?string $initialStatusCode = null,
+        ?callable $prepare = null
     ): RMAInterface {
         if (!$reasonId || !$resolutionTypeId) {
             throw new LocalizedException(__('Invalid request.'));
@@ -110,9 +117,9 @@ class RmaSubmitService
 
         $storeId = (int)$order->getStoreId();
 
-        $statusCode = $this->moduleConfig->isAutoApproveEnabled($storeId)
+        $statusCode = $initialStatusCode ?? ($this->moduleConfig->isAutoApproveEnabled($storeId)
             ? StatusCodes::APPROVED
-            : StatusCodes::NEW_REQUEST;
+            : StatusCodes::NEW_REQUEST);
         $statusId = $this->statusResolver->getIdByCode($statusCode);
 
         if (!$statusId) {
@@ -128,6 +135,10 @@ class RmaSubmitService
         $rma->setStatusId($statusId);
         $rma->setReasonId($reasonId);
         $rma->setResolutionTypeId($resolutionTypeId);
+
+        if ($prepare !== null) {
+            $prepare($rma);
+        }
 
         $connection = $this->resourceConnection->getConnection();
         $connection->beginTransaction();
