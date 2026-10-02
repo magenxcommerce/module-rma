@@ -16,12 +16,13 @@ use Magento\Sales\Api\Data\OrderInterface;
  *
  * This is the legal half of a withdrawal, so this module does not implement it:
  * the helpdesk module provides it (a ticket labelled as a withdrawal) through a
- * DI preference. An implementation MUST
- * - persist the declaration with the server time it arrived, and
+ * DI preference (Magenx_Helpdesk's DeclarationRecorder). An implementation MUST
+ * - persist the declaration with the server time it arrived, throwing when it
+ *   cannot, so the caller can tell the consumer it did not go through; and
  * - send the consumer a confirmation on a durable medium (email) with the
- *   declaration's content and that date and time,
- * before returning. It throws when it cannot do both, so the caller can tell the
- * consumer the declaration did not go through.
+ *   declaration's content and that date and time. A failed confirmation does not
+ *   undo a stored declaration: the implementation flags it for staff to send by
+ *   hand instead of throwing.
  *
  * The default preference (UnavailableDeclarationRecorder) reports itself
  * unavailable, which switches the withdrawal mutation off.

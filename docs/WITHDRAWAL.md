@@ -207,9 +207,14 @@ Called by the submit mutation (W11) after the helpdesk ticket exists.
   lines merged). The confirmation goes to the order's email. Review reasons
   stay internal.
 
+**Recorder** — done in `magenxcommerce/module-helpdesk`
+(`Model/Withdrawal/DeclarationRecorder.php`, branch `claude/withdrawal-support`):
+ticket in the `withdrawal` channel linked to the order (and account), staff
+notification, and a dedicated **Withdrawal Confirmation** mail to the order's
+email with order number, items, received time and ticket code. A failed mail
+leaves an internal note for staff. Magenx_Helpdesk now depends on Magenx_Rma.
+
 **Still open for this flow**
-- Helpdesk module: implement the recorder (ticket labelled "Withdrawal",
-  confirmation email template with declaration content and time).
 - Storefront: allowlist + Turnstile for both operations, and switch the
   `/withdrawal` form to them when `can_submit` is true.
 
