@@ -393,4 +393,18 @@ class WithdrawalServiceTest extends TestCase
         $this->assertNull($result->rma);
         $this->assertSame([WithdrawalResult::REVIEW_RMA_FAILED], $result->reviewReasons);
     }
+
+    public function testWithdrawableItemsListEveryLineWithHeldAndUnshippedQty(): void
+    {
+        $this->requested = [11 => 1];
+        $order = $this->order([10 => ['shipped' => 2, 'open' => 1], 11 => ['shipped' => 1, 'open' => 0]]);
+
+        $lines = $this->service->getWithdrawableItems($order);
+
+        $this->assertSame([10, 11], array_keys($lines));
+        $this->assertSame(2, $lines[10]['qty_held']);
+        $this->assertSame(1, $lines[10]['qty_unshipped']);
+        $this->assertSame(0, $lines[11]['qty_held']);
+        $this->assertSame(0, $lines[11]['qty_unshipped']);
+    }
 }

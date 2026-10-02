@@ -6,6 +6,7 @@
 
     Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
     identifiers renamed, GraphQL surface split into a sibling module.
+    Modified by MagenX: default withdrawal declaration recorder.
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
     <!-- Data Interfaces -->
@@ -161,4 +162,9 @@
             <argument name="confirmMessage" xsi:type="string">Are you sure you want to delete this item condition?</argument>
         </arguments>
     </virtualType>
+
+    <!-- Withdrawal declarations are recorded by the helpdesk module, which
+         overrides this preference; until then the withdrawal mutation is off. -->
+    <preference for="Magenx\Rma\Api\WithdrawalDeclarationRecorderInterface"
+                type="Magenx\Rma\Model\Withdrawal\UnavailableDeclarationRecorder"/>
 </config>

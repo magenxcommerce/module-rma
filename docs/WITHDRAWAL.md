@@ -177,25 +177,41 @@ Called by the submit mutation (W11) after the helpdesk ticket exists.
 
 ### Magenx_RmaGraphQl
 
-**W9 — Withdrawal-aware read**
-- Extend `CustomerReturn` with `is_withdrawal`, `helpdesk_ticket_code`,
-  `return_tracking_number`, `return_carrier`.
+**W9 — Withdrawal-aware read** — done
+- `CustomerReturn` has `is_withdrawal`, `withdrawal_declared_at`,
+  `helpdesk_ticket_code`, `return_carrier`, `return_tracking_number`.
 
-**W10 — Order lookup for the withdrawal form**
-- The storefront needs the order's withdrawable items before submitting. Add a
-  query (`withdrawalOrderItems(order_number, email)`) returning per item:
-  `order_item_id`, name, sku, `qty_withdrawable`, `qty_unshipped`.
-- Unlike G1, it must also find orders of registered customers who are logged
-  out, **but only return item data when order number + order email match**,
-  with the same generic error for every miss. Turnstile-protect it at the
-  storefront proxy (it is an enumeration surface).
+**W10 — Order lookup for the withdrawal form** — done
+- `withdrawalOrder(order_number, email)` returns `order_number`, `can_submit`
+  and per line `order_item_id`, `name`, `sku`, `qty_withdrawable`,
+  `qty_unshipped` (from `WithdrawalService::getWithdrawableItems()`).
+- Finds guest and registered-customer orders in the request's store; the
+  caller proves the order with the order email (case-insensitive) or by being
+  the logged-in owner. Same generic error for every miss. Not cacheable.
+  Turnstile-protect it at the storefront proxy (enumeration surface).
 
-**W11 — Submit**
-- Do not add a separate public "create withdrawal RMA" mutation. The storefront
-  calls one mutation (in the helpdesk GraphQL module or a small
-  `Magenx_Withdrawal` module) that creates the ticket first, then calls
-  `WithdrawalService::submit()`. That keeps the declaration and the RMA in one
-  server-side flow and avoids a client-ordered two-step that can half-fail.
+**W11 — Submit** — done
+- Contract `Api/WithdrawalDeclarationRecorderInterface`: persist the
+  declaration with its server arrival time and email the consumer a
+  confirmation with its content and that time, or throw. Implemented by the
+  helpdesk module through a DI preference. The default here,
+  `Model/Withdrawal/UnavailableDeclarationRecorder`, reports itself unavailable,
+  so `withdrawalOrder.can_submit` is false and `submitWithdrawal` fails with
+  "Withdrawal declarations are not available." until the helpdesk side ships.
+- `Service/WithdrawalSubmitService::submit()` records first, then calls
+  `WithdrawalService::submit()`. Only recording can fail the call; a failure
+  after it is logged as critical and left to staff.
+- `submitWithdrawal(input: {order_number, email, name, items?, message?})`
+  returns `ticket_code`, `received_at`, `return_number`, `order_canceled`.
+  Inputs trimmed and bounded (name 255, message 2000, 100 lines; duplicate
+  lines merged). The confirmation goes to the order's email. Review reasons
+  stay internal.
+
+**Still open for this flow**
+- Helpdesk module: implement the recorder (ticket labelled "Withdrawal",
+  confirmation email template with declaration content and time).
+- Storefront: allowlist + Turnstile for both operations, and switch the
+  `/withdrawal` form to them when `can_submit` is true.
 
 ## Admin setup after deploy
 

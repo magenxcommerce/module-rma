@@ -127,6 +127,43 @@ class WithdrawalService
     }
 
     /**
+     * Every returnable line of the order with what a withdrawal could still cover:
+     * `qty_held` (shipped, not refunded, not on an open RMA) and `qty_unshipped`
+     * (still to ship). Lines with nothing left are included with zeros, so callers
+     * can show the whole order. This is what the storefront offers for selection.
+     *
+     * @param OrderInterface $order
+     * @return array<int, array{order_item_id: int, name: string, sku: string, qty_held: int, qty_unshipped: int}>
+     */
+    public function getWithdrawableItems(OrderInterface $order): array
+    {
+        $held = [];
+        foreach ($this->orderEligibility->getEligibleItems($order) as $eligible) {
+            $held[(int)$eligible['order_item_id']] = (int)$eligible['qty_available'];
+        }
+
+        $lines = [];
+        foreach ($order->getItems() ?? [] as $orderItem) {
+            if (!$this->orderEligibility->isReturnableType($orderItem)) {
+                continue;
+            }
+            $id = (int)$orderItem->getItemId();
+            $stillPaidFor = (int)$orderItem->getQtyOrdered()
+                - (int)$orderItem->getQtyRefunded()
+                - (int)$orderItem->getQtyCanceled();
+            $lines[$id] = [
+                'order_item_id' => $id,
+                'name' => (string)$orderItem->getName(),
+                'sku' => (string)$orderItem->getSku(),
+                'qty_held' => $held[$id] ?? 0,
+                'qty_unshipped' => max(0, $stillPaidFor - $this->orderEligibility->getReturnableQty($orderItem)),
+            ];
+        }
+
+        return $lines;
+    }
+
+    /**
      * @param OrderInterface $order
      * @param array<int, int> $items
      * @param string[] $review
@@ -135,26 +172,15 @@ class WithdrawalService
      */
     protected function split(OrderInterface $order, array $items, array &$review): array
     {
+        $lines = $this->getWithdrawableItems($order);
         $available = [];
-        foreach ($this->orderEligibility->getEligibleItems($order) as $eligible) {
-            $available[(int)$eligible['order_item_id']] = (int)$eligible['qty_available'];
-        }
-
-        $lines = [];
-        foreach ($order->getItems() ?? [] as $orderItem) {
-            if ($this->orderEligibility->isReturnableType($orderItem)) {
-                $lines[(int)$orderItem->getItemId()] = $orderItem;
-            }
-        }
-
         $openQty = [];
-        foreach ($lines as $id => $orderItem) {
-            $stillPaidFor = (int)$orderItem->getQtyOrdered()
-                - (int)$orderItem->getQtyRefunded()
-                - (int)$orderItem->getQtyCanceled();
-            $open = $stillPaidFor - $this->orderEligibility->getReturnableQty($orderItem);
-            if ($open > 0) {
-                $openQty[$id] = $open;
+        foreach ($lines as $id => $line) {
+            if ($line['qty_held'] > 0) {
+                $available[$id] = $line['qty_held'];
+            }
+            if ($line['qty_unshipped'] > 0) {
+                $openQty[$id] = $line['qty_unshipped'];
             }
         }
 
