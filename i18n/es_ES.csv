@@ -251,3 +251,6 @@
 "RMA lookup ""%1"" does not exist.","El valor de RMA «%1» no existe."
 "Withdrawal needs review: %1.","El desistimiento requiere revisión: %1."
 "Not shipped yet: order item %1 x %2.","Aún no enviado: artículo del pedido %1 x %2."
+"An RMA opened from a withdrawal cannot be turned into an ordinary return.","Una RMA abierta a partir de un desistimiento no puede convertirse en una devolución normal."
+"A withdrawal cannot be rejected. Close it as Resolved after review instead.","Un desistimiento no puede rechazarse. Ciérrelo como Resuelto tras la revisión."
+"A withdrawal can only be canceled by the customer before the goods are sent back.","El cliente solo puede cancelar un desistimiento antes de devolver los productos."

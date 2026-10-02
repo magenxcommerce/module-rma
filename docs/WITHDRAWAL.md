@@ -1,7 +1,7 @@
 # Right of withdrawal (EU) — RMA support
 
-Status: **in progress** — W1–W5 implemented on `claude/withdrawal-support`;
-W6 onward still planned. This document records what
+Status: **in progress** — W1–W6 and W9–W11 implemented on
+`claude/withdrawal-support` (both modules); W7, W8 still planned. This document records what
 blocks the module from carrying an EU consumer withdrawal today, and the work
 needed in `Magenx_Rma` and `Magenx_RmaGraphQl` to close the gap.
 
@@ -147,9 +147,13 @@ Called by the submit mutation (W11) after the helpdesk ticket exists.
   and `rma_commit_after`, not `rma_approved_after` (that only fires on a
   status change). The label observer must listen to both.
 
-**W6 — Status workflow guard (F3)**
-- Plugin on `RMARepository::save()`: when `is_withdrawal=1`, refuse
-  `rejected`; allow `canceled_by_customer` only from `new_request`/`approved`.
+**W6 — Status workflow guard (F3)** — done (`Model/RMA/WithdrawalStatusGuard.php`)
+- Called from `RMARepository::save()`, so admin, REST and code paths all go
+  through it.
+- A withdrawal RMA can never become `rejected` (close it as `resolved` after
+  review); `canceled_by_customer` only from `new_request`, `need_details` or
+  `approved`; the withdrawal flag cannot be removed once set.
+- Saving without a status change is always allowed.
 
 **W7 — Return label (F4)**
 - Observer on `rma_approved_after` and on `rma_commit_after` (for RMAs

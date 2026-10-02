@@ -251,3 +251,6 @@
 "RMA lookup ""%1"" does not exist.","Il valore RMA «%1» non esiste."
 "Withdrawal needs review: %1.","Recesso da verificare: %1."
 "Not shipped yet: order item %1 x %2.","Non ancora spedito: articolo dell'ordine %1 x %2."
+"An RMA opened from a withdrawal cannot be turned into an ordinary return.","Un RMA aperto da un recesso non può essere trasformato in un reso ordinario."
+"A withdrawal cannot be rejected. Close it as Resolved after review instead.","Un recesso non può essere rifiutato. Chiudilo invece come Risolto dopo la verifica."
+"A withdrawal can only be canceled by the customer before the goods are sent back.","Il cliente può annullare un recesso solo prima di rispedire la merce."

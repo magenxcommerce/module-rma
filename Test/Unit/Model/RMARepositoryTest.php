@@ -17,6 +17,7 @@ use Magenx\Rma\Model\RMA;
 use Magenx\Rma\Api\Data\RMASearchResultsInterfaceFactory;
 use Magenx\Rma\Model\RMA\StatusCodes;
 use Magenx\Rma\Model\RMA\StatusResolver;
+use Magenx\Rma\Model\RMA\WithdrawalStatusGuard;
 use Magenx\Rma\Model\RMAFactory;
 use Magenx\Rma\Model\RMARepository;
 use Magenx\Rma\Model\ResourceModel\RMA as ResourceModel;
@@ -57,7 +58,8 @@ class RMARepositoryTest extends TestCase
             $this->searchResultsFactory,
             $this->collectionProcessor,
             $this->eventManager,
-            $this->statusResolver
+            $this->statusResolver,
+            $this->createMock(WithdrawalStatusGuard::class)
         );
     }
 

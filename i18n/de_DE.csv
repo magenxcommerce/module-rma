@@ -251,3 +251,6 @@
 "RMA lookup ""%1"" does not exist.","RMA-Wert „%1“ existiert nicht."
 "Withdrawal needs review: %1.","Widerruf muss geprüft werden: %1."
 "Not shipped yet: order item %1 x %2.","Noch nicht versendet: Bestellposition %1 x %2."
+"An RMA opened from a withdrawal cannot be turned into an ordinary return.","Eine aus einem Widerruf eröffnete RMA kann nicht in eine normale Rücksendung umgewandelt werden."
+"A withdrawal cannot be rejected. Close it as Resolved after review instead.","Ein Widerruf kann nicht abgelehnt werden. Schließen Sie ihn nach der Prüfung stattdessen als „Gelöst“."
+"A withdrawal can only be canceled by the customer before the goods are sent back.","Ein Widerruf kann vom Kunden nur storniert werden, bevor die Ware zurückgesendet wird."

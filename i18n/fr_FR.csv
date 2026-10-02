@@ -251,3 +251,6 @@
 "RMA lookup ""%1"" does not exist.","La valeur RMA « %1 » n'existe pas."
 "Withdrawal needs review: %1.","Rétractation à vérifier : %1."
 "Not shipped yet: order item %1 x %2.","Pas encore expédié : article de commande %1 x %2."
+"An RMA opened from a withdrawal cannot be turned into an ordinary return.","Une RMA ouverte à partir d'une rétractation ne peut pas devenir un retour ordinaire."
+"A withdrawal cannot be rejected. Close it as Resolved after review instead.","Une rétractation ne peut pas être refusée. Clôturez-la plutôt comme Résolue après vérification."
+"A withdrawal can only be canceled by the customer before the goods are sent back.","Le client ne peut annuler une rétractation qu'avant le renvoi des marchandises."

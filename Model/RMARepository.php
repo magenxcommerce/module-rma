@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: save() enforces the withdrawal status rules.
  */
 declare(strict_types=1);
 
@@ -19,6 +20,7 @@ use Magenx\Rma\Model\ResourceModel\RMA as ResourceModel;
 use Magenx\Rma\Model\ResourceModel\RMA\CollectionFactory;
 use Magenx\Rma\Model\RMA\StatusCodes;
 use Magenx\Rma\Model\RMA\StatusResolver;
+use Magenx\Rma\Model\RMA\WithdrawalStatusGuard;
 use Magento\Framework\Api\SearchCriteria\CollectionProcessorInterface;
 use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\Framework\Event\ManagerInterface as EventManagerInterface;
@@ -38,6 +40,7 @@ class RMARepository implements RMARepositoryInterface
      * @param CollectionProcessorInterface $collectionProcessor
      * @param EventManagerInterface $eventManager
      * @param StatusResolver $statusResolver
+     * @param WithdrawalStatusGuard $withdrawalStatusGuard
      */
     public function __construct(
         protected readonly ResourceModel $resourceModel,
@@ -46,7 +49,8 @@ class RMARepository implements RMARepositoryInterface
         protected readonly RMASearchResultsInterfaceFactory $searchResultsFactory,
         protected readonly CollectionProcessorInterface $collectionProcessor,
         protected readonly EventManagerInterface $eventManager,
-        protected readonly StatusResolver $statusResolver
+        protected readonly StatusResolver $statusResolver,
+        protected readonly WithdrawalStatusGuard $withdrawalStatusGuard
     ) {
     }
 
@@ -94,11 +98,10 @@ class RMARepository implements RMARepositoryInterface
     public function save(RMAInterface $rma): RMAInterface
     {
         $isNew = !$rma->getEntityId();
-        $oldStatusId = null;
+        $stored = $isNew ? null : $this->get((int) $rma->getEntityId());
+        $oldStatusId = $stored !== null ? (int) $stored->getStatusId() : null;
 
-        if (!$isNew) {
-            $oldStatusId = (int) $this->get((int) $rma->getEntityId())->getStatusId();
-        }
+        $this->withdrawalStatusGuard->assertAllowed($rma, $stored);
 
         try {
             $this->resourceModel->save($rma);

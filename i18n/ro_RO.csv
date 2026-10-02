@@ -251,3 +251,6 @@
 "RMA lookup ""%1"" does not exist.","Valoarea RMA „%1” nu există."
 "Withdrawal needs review: %1.","Retragerea necesită verificare: %1."
 "Not shipped yet: order item %1 x %2.","Încă neexpediat: articolul comenzii %1 x %2."
+"An RMA opened from a withdrawal cannot be turned into an ordinary return.","Un RMA deschis dintr-o retragere nu poate fi transformat într-un retur obișnuit."
+"A withdrawal cannot be rejected. Close it as Resolved after review instead.","O retragere nu poate fi respinsă. Închideți-o ca Rezolvat după verificare."
+"A withdrawal can only be canceled by the customer before the goods are sent back.","Clientul poate anula o retragere doar înainte de a trimite bunurile înapoi."
