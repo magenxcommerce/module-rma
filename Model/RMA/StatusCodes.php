@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: added the refunded status.
  */
 declare(strict_types=1);
 
@@ -21,6 +22,7 @@ class StatusCodes
     const RECEIVED_BY_ADMIN = 'received_by_admin';
     const CANCELED_BY_CUSTOMER = 'canceled_by_customer';
     const RESOLVED = 'resolved';
+    const REFUNDED = 'refunded';
     const STATUS_EVENT_MAP = [
         self::APPROVED => 'rma_approved_after',
         self::REJECTED => 'rma_rejected_after',
@@ -28,6 +30,7 @@ class StatusCodes
         self::RECEIVED_BY_ADMIN => 'rma_received_after',
         self::CANCELED_BY_CUSTOMER => 'rma_canceled_after',
         self::RESOLVED => 'rma_resolved_after',
+        self::REFUNDED => 'rma_refunded_after',
     ];
 
     const PROTECTED_CODES = [
@@ -38,6 +41,7 @@ class StatusCodes
         self::RECEIVED_BY_ADMIN,
         self::CANCELED_BY_CUSTOMER,
         self::RESOLVED,
+        self::REFUNDED,
     ];
 
     /**
