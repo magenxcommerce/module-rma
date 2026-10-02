@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/magenxcommerce/module-rma/compare/v1.1.0...v1.1.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* Fix description format in composer.json ([#14](https://github.com/magenxcommerce/module-rma/issues/14)) ([7fcb4e3](https://github.com/magenxcommerce/module-rma/commit/7fcb4e33f99937bd82bb3dc78d4227eb7d1c28c0))
+
 ## [1.1.0](https://github.com/magenxcommerce/module-rma/compare/v1.0.2...v1.1.0) (2026-10-02)
 
 
