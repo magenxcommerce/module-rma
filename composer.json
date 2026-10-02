@@ -1,6 +1,6 @@
 {
     "name": "magenxcommerce/module-rma",
-    "description": "Return Merchandise Authorization: RMA requests, statuses, reasons, resolution types, item conditions, comments and attachments. Forked from mage-os/module-rma 2.4.1 (MIT).",
+    "description": "Return Merchandise Authorization: RMA requests, statuses, reasons, resolution types, item conditions, comments and attachments. Forked from mage-os/module-rma 2.4.1 (MIT)",
     "config": {
         "sort-packages": true,
         "allow-plugins": {
