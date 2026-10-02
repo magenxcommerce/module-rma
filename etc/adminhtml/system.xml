@@ -6,6 +6,7 @@
 
     Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
     identifiers renamed, GraphQL surface split into a sibling module.
+    Modified by MagenX: added the Right of Withdrawal group.
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
     <system>
@@ -42,6 +43,39 @@
                     <source_model>Magenx\Rma\Model\Config\Source\OrderStatuses</source_model>
                     <comment>Only orders with these statuses can have a return request.</comment>
                     <can_be_empty>0</can_be_empty>
+                </field>
+            </group>
+            <group id="withdrawal" translate="label comment" sortOrder="25" showInDefault="1" showInWebsite="1" showInStore="0">
+                <label>Right of Withdrawal (EU)</label>
+                <comment>RMAs opened from a consumer withdrawal declaration. These ignore the Return Period and Allowed Order Statuses above.</comment>
+                <field id="enabled" translate="label comment" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Create RMAs from Withdrawals</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>When a withdrawal is declared, create an RMA for shipped items and cancel orders that have not shipped yet. Needs Enable RMA as well. When off, declarations are only recorded in the helpdesk.</comment>
+                </field>
+                <field id="period_days" translate="label comment" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Withdrawal Period (Days)</label>
+                    <validate>validate-digits validate-greater-than-zero</validate>
+                    <comment>Counted from the last shipment of the order. A later declaration is still accepted, but its RMA is flagged for staff review.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="transit_days" translate="label comment" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Delivery Transit (Days)</label>
+                    <validate>validate-digits</validate>
+                    <comment>Added to the shipment date to approximate when the customer received the goods, since Magento records dispatch, not delivery.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="auto_approve" translate="label comment" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Auto-Approve Withdrawal RMAs</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Withdrawal RMAs start as Approved (Yes) or New Request (No). A withdrawal is a legal right, so approval only confirms the return logistics. Late declarations always start as New Request.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
                 </field>
             </group>
             <group id="email" translate="label" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">

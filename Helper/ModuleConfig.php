@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: added the withdrawal settings.
  */
 declare(strict_types=1);
 
@@ -23,6 +24,7 @@ class ModuleConfig
     const GROUP_POLICY = self::SECTION . 'policy/';
     const GROUP_EMAIL = self::SECTION . 'email/';
     const GROUP_ATTACHMENTS = self::SECTION . 'attachments/';
+    const GROUP_WITHDRAWAL = self::SECTION . 'withdrawal/';
 
     const XML_PATH_ENABLED = self::GROUP_GENERAL . 'enabled';
     const XML_PATH_INCREMENT_ID_PREFIX = self::GROUP_GENERAL . 'increment_id_prefix';
@@ -40,6 +42,11 @@ class ModuleConfig
     const XML_PATH_ALLOWED_EXTENSIONS = self::GROUP_ATTACHMENTS . 'allowed_extensions';
     const XML_PATH_MAX_FILE_SIZE = self::GROUP_ATTACHMENTS . 'max_file_size';
     const XML_PATH_MAX_FILES = self::GROUP_ATTACHMENTS . 'max_files';
+
+    const XML_PATH_WITHDRAWAL_ENABLED = self::GROUP_WITHDRAWAL . 'enabled';
+    const XML_PATH_WITHDRAWAL_PERIOD_DAYS = self::GROUP_WITHDRAWAL . 'period_days';
+    const XML_PATH_WITHDRAWAL_TRANSIT_DAYS = self::GROUP_WITHDRAWAL . 'transit_days';
+    const XML_PATH_WITHDRAWAL_AUTO_APPROVE = self::GROUP_WITHDRAWAL . 'auto_approve';
 
     /**
      * @param ScopeConfigInterface $scopeConfig
@@ -249,5 +256,59 @@ class ModuleConfig
             ScopeInterface::SCOPE_STORE,
             $storeId
         ));
+    }
+
+    /**
+     * Withdrawal RMAs need the module itself enabled as well.
+     *
+     * @param int $storeId
+     * @return bool
+     */
+    public function isWithdrawalEnabled(int $storeId = 0): bool
+    {
+        return $this->isEnabled($storeId) && $this->scopeConfig->isSetFlag(
+            self::XML_PATH_WITHDRAWAL_ENABLED,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    /**
+     * @param int $storeId
+     * @return int
+     */
+    public function getWithdrawalPeriodDays(int $storeId = 0): int
+    {
+        return (int)$this->scopeConfig->getValue(
+            self::XML_PATH_WITHDRAWAL_PERIOD_DAYS,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    /**
+     * @param int $storeId
+     * @return int
+     */
+    public function getWithdrawalTransitDays(int $storeId = 0): int
+    {
+        return (int)$this->scopeConfig->getValue(
+            self::XML_PATH_WITHDRAWAL_TRANSIT_DAYS,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    /**
+     * @param int $storeId
+     * @return bool
+     */
+    public function isWithdrawalAutoApproveEnabled(int $storeId = 0): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_WITHDRAWAL_AUTO_APPROVE,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
     }
 }
