@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/magenxcommerce/module-rma/compare/v1.0.2...v1.1.0) (2026-10-02)
+
+
+### Features
+
+* EU right-of-withdrawal support ([#11](https://github.com/magenxcommerce/module-rma/issues/11)) ([40a52d1](https://github.com/magenxcommerce/module-rma/commit/40a52d1328dba6bfd4670be26626b0280ce00012))
+
 ## [1.0.2](https://github.com/magenxcommerce/module-rma/compare/v1.0.1...v1.0.2) (2026-09-21)
 
 
