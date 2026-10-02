@@ -1,6 +1,7 @@
 # Right of withdrawal (EU) — RMA support
 
-Status: **plan**. Nothing below is implemented yet. This document records what
+Status: **in progress** — W1–W3 implemented on `claude/withdrawal-support`;
+W4 onward still planned. This document records what
 blocks the module from carrying an EU consumer withdrawal today, and the work
 needed in `Magenx_Rma` and `Magenx_RmaGraphQl` to close the gap.
 
@@ -71,14 +72,14 @@ Order matters: W1–W3 are prerequisites for everything else.
 
 ### Magenx_Rma
 
-**W1 — Data patches**
-- Reason `withdrawal` ("Withdrawal from contract"), store labels for every locale
-  the storefront ships.
+**W1 — Data patches** — done (`Setup/Patch/Data/AddWithdrawalLookups.php`)
+- Reason `withdrawal` ("Withdrawal from Contract"); translated through
+  `i18n/*.csv` like the other seeded labels, per-store overrides in the admin.
 - Resolution `refund`.
 - Status `refunded` (protected, add to `StatusCodes::PROTECTED_CODES` and
   `STATUS_EVENT_MAP` → `rma_refunded_after`). Optional: `label_sent`.
 
-**W2 — Schema: `rma_entity`**
+**W2 — Schema: `rma_entity`** — done
 - `is_withdrawal` smallint, default 0, indexed.
 - `withdrawal_declared_at` timestamp, nullable — the time the declaration
   arrived, copied from the ticket, never from the client.
@@ -87,13 +88,21 @@ Order matters: W1–W3 are prerequisites for everything else.
 - Update `db_schema_whitelist.json`, `RMAInterface`, `Model/RMA.php`, the admin
   grid (filter on withdrawal) and the edit form (read-only withdrawal block).
 
-**W3 — Eligibility fixes (benefit ordinary returns too)**
+**W3 — Eligibility fixes (benefit ordinary returns too)** — done
 - E3: per item, returnable qty =
-  `qty_shipped − qty_refunded − already requested`.
-- E4: count only RMAs whose status is not `rejected` or `canceled_by_customer`.
-- Add `OrderEligibility::explain(OrderInterface): EligibilityResult` returning a
-  reason code (`disabled`, `status`, `period`, `not_shipped`, `no_items`, `ok`)
-  so callers can branch (fixes G2 without changing the existing error text).
+  `min(qty_shipped, qty_ordered − qty_refunded − qty_canceled) − already requested`.
+  The `min` keeps a refund of never-shipped qty from also reducing shipped qty.
+  A bundle shipped separately counts complete bundles from its children.
+- E4: RMAs in `rejected`, `canceled_by_customer` or `refunded` no longer hold
+  qty. `refunded` is excluded because that qty is already in `qty_refunded`;
+  `resolved` still holds it (exchange/repair, or a refund done by hand outside
+  the RMA — staff should move such RMAs to `refunded`).
+- `OrderEligibility::explain(OrderInterface): string` returns one of
+  `RESULT_OK`, `RESULT_DISABLED`, `RESULT_ORDER_STATUS`, `RESULT_RETURN_PERIOD`,
+  `RESULT_NOT_SHIPPED`, `RESULT_NO_ITEMS`. `isOrderEligible()` is now
+  `explain() === RESULT_OK`; existing error texts are unchanged.
+- Behaviour change for ordinary returns: an item can no longer be requested
+  beyond what was shipped, and refunded or canceled qty is no longer returnable.
 
 **W4 — Withdrawal eligibility**
 - New `Service/WithdrawalEligibility.php`, separate from `OrderEligibility`:
