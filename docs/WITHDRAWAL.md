@@ -214,9 +214,12 @@ notification, and a dedicated **Withdrawal Confirmation** mail to the order's
 email with order number, items, received time and ticket code. A failed mail
 leaves an internal note for staff. Magenx_Helpdesk now depends on Magenx_Rma.
 
-**Still open for this flow**
-- Storefront: allowlist + Turnstile for both operations, and switch the
-  `/withdrawal` form to them when `can_submit` is true.
+**Storefront** — done in `magenxcommerce/magenxcommerce`
+(branch `claude/cool-mendel-imyx5k`): both operations allowlisted via the
+returns manifest and Turnstile-protected (action `withdrawal`); the
+`/withdrawal` form looks the order up, offers whole order or selected lines,
+and submits; it falls back to the contactUs email when the backend lacks the
+operations or `can_submit` is false.
 
 ## Admin setup after deploy
 
