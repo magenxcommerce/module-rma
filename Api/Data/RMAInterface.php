@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: added the withdrawal and return-shipment fields.
  */
 declare(strict_types=1);
 
@@ -26,6 +27,11 @@ interface RMAInterface
     const STATUS_ID = 'status_id';
     const REASON_ID = 'reason_id';
     const RESOLUTION_TYPE_ID = 'resolution_type_id';
+    const IS_WITHDRAWAL = 'is_withdrawal';
+    const WITHDRAWAL_DECLARED_AT = 'withdrawal_declared_at';
+    const HELPDESK_TICKET_CODE = 'helpdesk_ticket_code';
+    const RETURN_CARRIER = 'return_carrier';
+    const RETURN_TRACKING_NUMBER = 'return_tracking_number';
     const CREATED_AT = 'created_at';
     const UPDATED_AT = 'updated_at';
 
@@ -160,4 +166,59 @@ interface RMAInterface
      * @return $this
      */
     public function setUpdatedAt(string $updatedAt): self;
+
+    /**
+     * @return bool
+     */
+    public function isWithdrawal(): bool;
+
+    /**
+     * @param bool $isWithdrawal
+     * @return $this
+     */
+    public function setIsWithdrawal(bool $isWithdrawal): self;
+
+    /**
+     * @return string|null
+     */
+    public function getWithdrawalDeclaredAt(): ?string;
+
+    /**
+     * @param string|null $withdrawalDeclaredAt
+     * @return $this
+     */
+    public function setWithdrawalDeclaredAt(?string $withdrawalDeclaredAt): self;
+
+    /**
+     * @return string|null
+     */
+    public function getHelpdeskTicketCode(): ?string;
+
+    /**
+     * @param string|null $helpdeskTicketCode
+     * @return $this
+     */
+    public function setHelpdeskTicketCode(?string $helpdeskTicketCode): self;
+
+    /**
+     * @return string|null
+     */
+    public function getReturnCarrier(): ?string;
+
+    /**
+     * @param string|null $returnCarrier
+     * @return $this
+     */
+    public function setReturnCarrier(?string $returnCarrier): self;
+
+    /**
+     * @return string|null
+     */
+    public function getReturnTrackingNumber(): ?string;
+
+    /**
+     * @param string|null $returnTrackingNumber
+     * @return $this
+     */
+    public function setReturnTrackingNumber(?string $returnTrackingNumber): self;
 }

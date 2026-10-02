@@ -6,6 +6,7 @@
 
     Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
     identifiers renamed, GraphQL surface split into a sibling module.
+    Modified by MagenX: added the withdrawal and return-shipment columns to rma_entity.
 -->
 <schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
     <!-- RMA Entity main table -->
@@ -20,6 +21,11 @@
         <column xsi:type="int" name="status_id" unsigned="true" nullable="false" comment="Status ID"/>
         <column xsi:type="int" name="reason_id" unsigned="true" nullable="false" comment="Reason ID"/>
         <column xsi:type="int" name="resolution_type_id" unsigned="true" nullable="false" comment="Resolution Type ID"/>
+        <column xsi:type="smallint" name="is_withdrawal" unsigned="true" nullable="false" default="0" comment="Created From A Consumer Withdrawal Declaration"/>
+        <column xsi:type="timestamp" name="withdrawal_declared_at" on_update="false" nullable="true" comment="When The Withdrawal Declaration Was Received"/>
+        <column xsi:type="varchar" name="helpdesk_ticket_code" nullable="true" length="64" comment="Helpdesk Ticket Holding The Declaration"/>
+        <column xsi:type="varchar" name="return_carrier" nullable="true" length="64" comment="Return Shipment Carrier"/>
+        <column xsi:type="varchar" name="return_tracking_number" nullable="true" length="128" comment="Return Shipment Tracking Number"/>
         <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP" comment="Created At"/>
         <column xsi:type="timestamp" name="updated_at" on_update="true" nullable="false" default="CURRENT_TIMESTAMP" comment="Updated At"/>
         <constraint xsi:type="primary" referenceId="PRIMARY">
@@ -69,6 +75,12 @@
         </index>
         <index referenceId="RMA_ENTITY_RESOLUTION_TYPE_ID" indexType="btree">
             <column name="resolution_type_id"/>
+        </index>
+        <index referenceId="RMA_ENTITY_IS_WITHDRAWAL" indexType="btree">
+            <column name="is_withdrawal"/>
+        </index>
+        <index referenceId="RMA_ENTITY_HELPDESK_TICKET_CODE" indexType="btree">
+            <column name="helpdesk_ticket_code"/>
         </index>
     </table>
 

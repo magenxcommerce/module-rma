@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: shows the withdrawal and return-tracking details.
  */
 use Magenx\Rma\Block\Adminhtml\Rma\Edit\Info;
 use Magenx\Rma\Api\Data\RMAInterface;
@@ -38,6 +39,9 @@ $storeName = $escaper->escapeHtml($block->getStoreName($storeId), ['br']);
     <div class="admin__page-section-item rma-info-left">
         <div class="admin__page-section-item-title">
             <span class="title"><?= $escaper->escapeHtml(__('RMA Details')) ?></span>
+            <?php if ($rma->isWithdrawal()): ?>
+                <span class="rma-withdrawal-label"><?= $escaper->escapeHtml(__('Withdrawal')) ?></span>
+            <?php endif; ?>
         </div>
         <div class="admin__page-section-item-content">
             <table class="admin__table-secondary">
@@ -53,6 +57,28 @@ $storeName = $escaper->escapeHtml($block->getStoreName($storeId), ['br']);
                     <th><?= $escaper->escapeHtml(__('Created At')) ?></th>
                     <td><?= $escaper->escapeHtml($createdAt) ?></td>
                 </tr>
+                <?php if ($rma->isWithdrawal()): ?>
+                    <tr>
+                        <th><?= $escaper->escapeHtml(__('Withdrawal Declared At')) ?></th>
+                        <td>
+                            <?= $rma->getWithdrawalDeclaredAt()
+                                ? $escaper->escapeHtml($block->getFormattedDate($rma->getWithdrawalDeclaredAt(), $storeId))
+                                : '&mdash;' ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?= $escaper->escapeHtml(__('Helpdesk Ticket')) ?></th>
+                        <td><?= $escaper->escapeHtml($rma->getHelpdeskTicketCode() ?: '—') ?></td>
+                    </tr>
+                <?php endif; ?>
+                <?php if ($rma->getReturnTrackingNumber()): ?>
+                    <tr>
+                        <th><?= $escaper->escapeHtml(__('Return Tracking')) ?></th>
+                        <td>
+                            <?= $escaper->escapeHtml(trim($rma->getReturnCarrier() . ' ' . $rma->getReturnTrackingNumber())) ?>
+                        </td>
+                    </tr>
+                <?php endif; ?>
             </table>
         </div>
     </div>
@@ -95,4 +121,5 @@ $storeName = $escaper->escapeHtml($block->getStoreName($storeId), ['br']);
     .rma-info-columns { display: flex; gap: 2rem; }
     .rma-info-columns .admin__page-section-item { flex: 1; min-width: 0; }
     .rma-guest-label { color: #999; font-style: italic; }
+    .rma-withdrawal-label { margin-left: .5rem; padding: 0 .5rem; border-radius: 2px; background: #eb5202; color: #fff; font-size: 1.2rem; }
 </style>

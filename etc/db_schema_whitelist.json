@@ -11,6 +11,11 @@
             "status_id": true,
             "reason_id": true,
             "resolution_type_id": true,
+            "is_withdrawal": true,
+            "withdrawal_declared_at": true,
+            "helpdesk_ticket_code": true,
+            "return_carrier": true,
+            "return_tracking_number": true,
             "created_at": true,
             "updated_at": true
         },
@@ -30,7 +35,9 @@
             "RMA_ENTITY_STORE_ID": true,
             "RMA_ENTITY_STATUS_ID": true,
             "RMA_ENTITY_REASON_ID": true,
-            "RMA_ENTITY_RESOLUTION_TYPE_ID": true
+            "RMA_ENTITY_RESOLUTION_TYPE_ID": true,
+            "RMA_ENTITY_IS_WITHDRAWAL": true,
+            "RMA_ENTITY_HELPDESK_TICKET_CODE": true
         }
     },
     "rma_item_condition": {

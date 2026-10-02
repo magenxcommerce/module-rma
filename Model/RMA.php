@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: added the withdrawal and return-shipment fields.
  */
 declare(strict_types=1);
 
@@ -236,5 +237,90 @@ class RMA extends AbstractModel implements RMAInterface
     public function setUpdatedAt(string $updatedAt): self
     {
         return $this->setData(self::UPDATED_AT, $updatedAt);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isWithdrawal(): bool
+    {
+        return (bool)$this->getData(self::IS_WITHDRAWAL);
+    }
+
+    /**
+     * @param bool $isWithdrawal
+     * @return self
+     */
+    public function setIsWithdrawal(bool $isWithdrawal): self
+    {
+        return $this->setData(self::IS_WITHDRAWAL, (int)$isWithdrawal);
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getWithdrawalDeclaredAt(): ?string
+    {
+        return $this->getData(self::WITHDRAWAL_DECLARED_AT);
+    }
+
+    /**
+     * @param string|null $withdrawalDeclaredAt
+     * @return self
+     */
+    public function setWithdrawalDeclaredAt(?string $withdrawalDeclaredAt): self
+    {
+        return $this->setData(self::WITHDRAWAL_DECLARED_AT, $withdrawalDeclaredAt);
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getHelpdeskTicketCode(): ?string
+    {
+        return $this->getData(self::HELPDESK_TICKET_CODE);
+    }
+
+    /**
+     * @param string|null $helpdeskTicketCode
+     * @return self
+     */
+    public function setHelpdeskTicketCode(?string $helpdeskTicketCode): self
+    {
+        return $this->setData(self::HELPDESK_TICKET_CODE, $helpdeskTicketCode);
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getReturnCarrier(): ?string
+    {
+        return $this->getData(self::RETURN_CARRIER);
+    }
+
+    /**
+     * @param string|null $returnCarrier
+     * @return self
+     */
+    public function setReturnCarrier(?string $returnCarrier): self
+    {
+        return $this->setData(self::RETURN_CARRIER, $returnCarrier);
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getReturnTrackingNumber(): ?string
+    {
+        return $this->getData(self::RETURN_TRACKING_NUMBER);
+    }
+
+    /**
+     * @param string|null $returnTrackingNumber
+     * @return self
+     */
+    public function setReturnTrackingNumber(?string $returnTrackingNumber): self
+    {
+        return $this->setData(self::RETURN_TRACKING_NUMBER, $returnTrackingNumber);
     }
 }
