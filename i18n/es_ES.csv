@@ -261,3 +261,6 @@
 "The message can be at most %1 characters long.","El mensaje puede tener como máximo %1 caracteres."
 "Too many items.","Demasiados artículos."
 "Each item needs an order item ID and a quantity above zero.","Cada artículo necesita un ID de artículo del pedido y una cantidad mayor que cero."
+"Please enter a valid email address.","Introduzca una dirección de correo electrónico válida."
+"Please enter your order number.","Introduzca su número de pedido."
+"The text can be at most %1 characters long.","El texto puede tener como máximo %1 caracteres."

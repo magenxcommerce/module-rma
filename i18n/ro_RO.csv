@@ -261,3 +261,6 @@
 "The message can be at most %1 characters long.","Mesajul poate avea cel mult %1 caractere."
 "Too many items.","Prea multe articole."
 "Each item needs an order item ID and a quantity above zero.","Fiecare articol are nevoie de un ID de articol al comenzii și de o cantitate mai mare decât zero."
+"Please enter a valid email address.","Vă rugăm să introduceți o adresă de e-mail validă."
+"Please enter your order number.","Vă rugăm să introduceți numărul comenzii."
+"The text can be at most %1 characters long.","Textul poate avea cel mult %1 caractere."

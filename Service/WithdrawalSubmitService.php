@@ -8,30 +8,35 @@ declare(strict_types=1);
 namespace Magenx\Rma\Service;
 
 use Magenx\Rma\Api\WithdrawalDeclarationRecorderInterface;
+use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Sales\Api\Data\OrderInterface;
+use Magento\Sales\Api\OrderRepositoryInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * One server-side flow for a withdrawal: record the declaration first (the
- * legal act, with its confirmation email), then hand it to WithdrawalService
- * for the RMA or the order cancel.
+ * Records a withdrawal declaration from the storefront form.
  *
- * Only the recording step can fail the call. Once the declaration is stored,
- * the consumer has withdrawn, so a failure in the return step is logged and
- * left to staff instead of being reported as a failed declaration.
+ * The declaration is taken as submitted — free text, no order lookup on the
+ * consumer's side — and stored through the recorder. When the order number
+ * happens to match an order the declarant can prove (order email, or the
+ * logged-in customer who placed it), the record is linked to that order so staff
+ * start from it; nothing else is decided here. Opening the withdrawal return or
+ * canceling the order (WithdrawalService) is staff work after review.
  */
 class WithdrawalSubmitService
 {
     /**
      * @param WithdrawalDeclarationRecorderInterface $recorder
-     * @param WithdrawalService $withdrawalService
+     * @param OrderRepositoryInterface $orderRepository
+     * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
      * @param LoggerInterface $logger
      */
     public function __construct(
         protected readonly WithdrawalDeclarationRecorderInterface $recorder,
-        protected readonly WithdrawalService $withdrawalService,
+        protected readonly OrderRepositoryInterface $orderRepository,
+        protected readonly SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
         protected readonly LoggerInterface $logger
     ) {
     }
@@ -46,78 +51,60 @@ class WithdrawalSubmitService
     }
 
     /**
-     * @param OrderInterface $order Already matched to the declarant by the caller
-     * @param string $name
-     * @param string $email
-     * @param array<int, int> $items Order item id => qty; empty means the whole order
-     * @param string $message
-     * @return WithdrawalSubmission
+     * @param WithdrawalRequest $request
+     * @return WithdrawalDeclaration
      * @throws LocalizedException When the declaration could not be recorded
      */
-    public function submit(
-        OrderInterface $order,
-        string $name,
-        string $email,
-        array $items,
-        string $message = ''
-    ): WithdrawalSubmission {
-        if (!$this->recorder->isAvailable((int)$order->getStoreId())) {
+    public function submit(WithdrawalRequest $request): WithdrawalDeclaration
+    {
+        if (!$this->recorder->isAvailable($request->storeId)) {
             throw new LocalizedException(__('Withdrawal declarations are not available.'));
         }
 
-        $declaration = $this->recorder->record(
-            $order,
-            $name,
-            $email,
-            $this->describeItems($order, $items),
-            $message
-        );
-
-        try {
-            $result = $this->withdrawalService->submit(
-                $order,
-                $items,
-                $declaration->ticketCode,
-                $declaration->declaredAt
-            );
-        } catch (Throwable $e) {
-            $this->logger->critical('RMA withdrawal: return step failed after the declaration was recorded', [
-                'order_id' => $order->getEntityId(),
-                'ticket' => $declaration->ticketCode,
-                'error' => $e->getMessage(),
-            ]);
-            $result = null;
-        }
-
-        return new WithdrawalSubmission($declaration, $result);
+        return $this->recorder->record($request, $this->matchOrder($request));
     }
 
     /**
-     * Item lines for the declaration record, as the declarant chose them. Ids that
-     * are not lines of the order are kept (by id) so the record shows exactly what
-     * was declared.
+     * The order the declaration names, when the declarant can prove it: the
+     * order number matches an order of this store AND either the email equals the
+     * order's email (case-insensitive) or the logged-in customer placed it.
+     * Anything else is null — never an error: a mistyped number is still a valid
+     * declaration.
      *
-     * @param OrderInterface $order
-     * @param array<int, int> $items
-     * @return array<int, array{name: string, sku: string, qty: int}>
+     * @param WithdrawalRequest $request
+     * @return OrderInterface|null
      */
-    protected function describeItems(OrderInterface $order, array $items): array
+    public function matchOrder(WithdrawalRequest $request): ?OrderInterface
     {
-        if (empty($items)) {
-            return [];
+        $orderNumber = trim($request->orderNumber);
+        if ($orderNumber === '') {
+            return null;
         }
 
-        $lines = $this->withdrawalService->getWithdrawableItems($order);
-        $described = [];
-        foreach ($items as $id => $qty) {
-            $id = (int)$id;
-            $described[$id] = [
-                'name' => $lines[$id]['name'] ?? (string)__('Order item %1', $id),
-                'sku' => $lines[$id]['sku'] ?? '',
-                'qty' => (int)$qty,
-            ];
+        try {
+            $criteria = $this->searchCriteriaBuilderFactory->create()
+                ->addFilter('increment_id', $orderNumber)
+                ->addFilter('store_id', $request->storeId)
+                ->setPageSize(1)
+                ->create();
+            $orders = $this->orderRepository->getList($criteria)->getItems();
+        } catch (Throwable $e) {
+            $this->logger->warning('RMA withdrawal: order match failed', ['error' => $e->getMessage()]);
+            return null;
         }
 
-        return $described;
+        $order = reset($orders);
+        if (!$order) {
+            return null;
+        }
+
+        $email = strtolower(trim($request->email));
+        $emailMatches = $email !== ''
+            && hash_equals(strtolower((string)$order->getCustomerEmail()), $email);
+        $isOwner = $request->customerId !== null
+            && (int)$order->getCustomerId() === $request->customerId
+            && $request->customerId > 0;
+
+        return $emailMatches || $isOwner ? $order : null;
     }
 }

@@ -10,98 +10,134 @@ namespace Magenx\Rma\Test\Unit\Service;
 use Magenx\Rma\Api\WithdrawalDeclarationRecorderInterface;
 use Magenx\Rma\Model\Withdrawal\UnavailableDeclarationRecorder;
 use Magenx\Rma\Service\WithdrawalDeclaration;
-use Magenx\Rma\Service\WithdrawalResult;
-use Magenx\Rma\Service\WithdrawalService;
+use Magenx\Rma\Service\WithdrawalRequest;
 use Magenx\Rma\Service\WithdrawalSubmitService;
+use Magento\Framework\Api\SearchCriteria;
+use Magento\Framework\Api\SearchCriteriaBuilder;
+use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Sales\Api\Data\OrderInterface;
+use Magento\Sales\Api\Data\OrderSearchResultInterface;
+use Magento\Sales\Api\OrderRepositoryInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
 
 class WithdrawalSubmitServiceTest extends TestCase
 {
     private WithdrawalDeclarationRecorderInterface&MockObject $recorder;
-    private WithdrawalService&MockObject $withdrawalService;
-    private LoggerInterface&MockObject $logger;
-    private WithdrawalSubmitService $service;
-    private OrderInterface $order;
+    private OrderRepositoryInterface&MockObject $orderRepository;
+    private SearchCriteriaBuilderFactory&MockObject $builderFactory;
+    private ?OrderInterface $storedOrder = null;
+    /** @var array<string, mixed> */
+    private array $filters = [];
 
     protected function setUp(): void
     {
         $this->recorder = $this->createMock(WithdrawalDeclarationRecorderInterface::class);
-        $this->withdrawalService = $this->createMock(WithdrawalService::class);
-        $this->withdrawalService->method('getWithdrawableItems')->willReturn([
-            10 => ['order_item_id' => 10, 'name' => 'Shirt', 'sku' => 'SH-1', 'qty_held' => 1, 'qty_unshipped' => 0],
-        ]);
-        $this->logger = $this->createMock(LoggerInterface::class);
-        $this->service = new WithdrawalSubmitService($this->recorder, $this->withdrawalService, $this->logger);
-        $this->order = $this->createConfiguredMock(OrderInterface::class, ['getStoreId' => 1, 'getEntityId' => 100]);
+        $this->orderRepository = $this->createMock(OrderRepositoryInterface::class);
+        $this->orderRepository->method('getList')->willReturnCallback(fn() => $this->createConfiguredMock(
+            OrderSearchResultInterface::class,
+            ['getItems' => $this->storedOrder ? [$this->storedOrder] : []]
+        ));
+
+        $builder = $this->createMock(SearchCriteriaBuilder::class);
+        $builder->method('addFilter')->willReturnCallback(function (string $field, $value) use (&$builder) {
+            $this->filters[$field] = $value;
+            return $builder;
+        });
+        $builder->method('setPageSize')->willReturnSelf();
+        $builder->method('create')->willReturn($this->createMock(SearchCriteria::class));
+        $this->builderFactory = $this->createMock(SearchCriteriaBuilderFactory::class);
+        $this->builderFactory->method('create')->willReturn($builder);
     }
 
-    public function testUnavailableRecorderStopsBeforeAnythingHappens(): void
+    private function service(?WithdrawalDeclarationRecorderInterface $recorder = null): WithdrawalSubmitService
     {
-        $service = new WithdrawalSubmitService(
-            new UnavailableDeclarationRecorder(),
-            $this->withdrawalService,
-            $this->logger
+        return new WithdrawalSubmitService(
+            $recorder ?? $this->recorder,
+            $this->orderRepository,
+            $this->builderFactory,
+            $this->createMock(LoggerInterface::class)
         );
-        $this->withdrawalService->expects($this->never())->method('submit');
+    }
+
+    private function request(string $email = 'jane@example.com', string $orderNumber = '000000042', ?int $customerId = null): WithdrawalRequest
+    {
+        return new WithdrawalRequest(1, 'Jane', $email, $orderNumber, 'Blue shirt, SKU HAT-1', 'Too small', $customerId);
+    }
+
+    private function storedOrder(int $customerId = 0): OrderInterface
+    {
+        return $this->storedOrder = $this->createConfiguredMock(OrderInterface::class, [
+            'getCustomerEmail' => 'Jane@Example.com',
+            'getCustomerId' => $customerId ?: null,
+        ]);
+    }
+
+    public function testUnavailableRecorderRefuses(): void
+    {
+        $service = $this->service(new UnavailableDeclarationRecorder());
 
         $this->assertFalse($service->isAvailable(1));
         $this->expectException(LocalizedException::class);
-        $service->submit($this->order, 'Jane', 'jane@example.com', []);
+        $service->submit($this->request());
     }
 
-    public function testRecordsFirstThenHandsTheTicketToTheReturnStep(): void
+    public function testRecordsWithTheMatchedOrder(): void
     {
+        $order = $this->storedOrder();
+        $request = $this->request(' JANE@example.com ');
+        $declaration = new WithdrawalDeclaration('TX-1', '2026-10-02 09:00:00');
         $this->recorder->method('isAvailable')->willReturn(true);
-        $this->recorder->expects($this->once())
-            ->method('record')
-            ->with(
-                $this->order,
-                'Jane',
-                'jane@example.com',
-                [
-                    10 => ['name' => 'Shirt', 'sku' => 'SH-1', 'qty' => 1],
-                    99 => ['name' => 'Order item 99', 'sku' => '', 'qty' => 2],
-                ],
-                'Too small'
-            )
-            ->willReturn(new WithdrawalDeclaration('TX-1', '2026-10-02 09:00:00'));
-        $result = new WithdrawalResult(null, false, false, [], [10 => 1], []);
-        $this->withdrawalService->expects($this->once())
-            ->method('submit')
-            ->with($this->order, [10 => 1, 99 => 2], 'TX-1', '2026-10-02 09:00:00')
-            ->willReturn($result);
+        $this->recorder->expects($this->once())->method('record')->with($request, $order)->willReturn($declaration);
 
-        $submission = $this->service->submit($this->order, 'Jane', 'jane@example.com', [10 => 1, 99 => 2], 'Too small');
+        $this->assertSame($declaration, $this->service()->submit($request));
+        $this->assertSame(['increment_id' => '000000042', 'store_id' => 1], $this->filters);
+    }
 
-        $this->assertSame('TX-1', $submission->declaration->ticketCode);
-        $this->assertSame($result, $submission->result);
+    public function testRecordsWithoutAnOrderWhenTheEmailDiffers(): void
+    {
+        $this->storedOrder();
+        $request = $this->request('someone@example.com');
+        $this->recorder->method('isAvailable')->willReturn(true);
+        $this->recorder->expects($this->once())->method('record')->with($request, null)
+            ->willReturn(new WithdrawalDeclaration('TX-1', 'now'));
+
+        $this->service()->submit($request);
+    }
+
+    public function testRecordsWithoutAnOrderWhenNoneMatches(): void
+    {
+        $request = $this->request('jane@example.com', 'no-such-order');
+        $this->recorder->method('isAvailable')->willReturn(true);
+        $this->recorder->expects($this->once())->method('record')->with($request, null)
+            ->willReturn(new WithdrawalDeclaration('TX-1', 'now'));
+
+        $this->service()->submit($request);
+    }
+
+    public function testLoggedInOwnerMatchesWithoutTheOrderEmail(): void
+    {
+        $order = $this->storedOrder(7);
+
+        $this->assertSame($order, $this->service()->matchOrder($this->request('other@example.com', '000000042', 7)));
+        $this->assertNull($this->service()->matchOrder($this->request('other@example.com', '000000042', 8)));
+    }
+
+    public function testEmptyOrderNumberIsNotLookedUp(): void
+    {
+        $this->orderRepository->expects($this->never())->method('getList');
+
+        $this->assertNull($this->service()->matchOrder($this->request('jane@example.com', '  ')));
     }
 
     public function testFailedRecordingFailsTheCall(): void
     {
         $this->recorder->method('isAvailable')->willReturn(true);
         $this->recorder->method('record')->willThrowException(new LocalizedException(__('mail down')));
-        $this->withdrawalService->expects($this->never())->method('submit');
 
         $this->expectException(LocalizedException::class);
-        $this->service->submit($this->order, 'Jane', 'jane@example.com', []);
-    }
-
-    public function testReturnStepFailureKeepsTheDeclaration(): void
-    {
-        $this->recorder->method('isAvailable')->willReturn(true);
-        $this->recorder->method('record')->willReturn(new WithdrawalDeclaration('TX-1', '2026-10-02 09:00:00'));
-        $this->withdrawalService->method('submit')->willThrowException(new RuntimeException('db gone'));
-        $this->logger->expects($this->once())->method('critical');
-
-        $submission = $this->service->submit($this->order, 'Jane', 'jane@example.com', []);
-
-        $this->assertSame('TX-1', $submission->declaration->ticketCode);
-        $this->assertNull($submission->result);
+        $this->service()->submit($this->request());
     }
 }

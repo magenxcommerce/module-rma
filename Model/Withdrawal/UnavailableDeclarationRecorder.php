@@ -9,6 +9,7 @@ namespace Magenx\Rma\Model\Withdrawal;
 
 use Magenx\Rma\Api\WithdrawalDeclarationRecorderInterface;
 use Magenx\Rma\Service\WithdrawalDeclaration;
+use Magenx\Rma\Service\WithdrawalRequest;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Sales\Api\Data\OrderInterface;
 
@@ -28,21 +29,13 @@ class UnavailableDeclarationRecorder implements WithdrawalDeclarationRecorderInt
     }
 
     /**
-     * @param OrderInterface $order
-     * @param string $name
-     * @param string $email
-     * @param array $items
-     * @param string $message
+     * @param WithdrawalRequest $request
+     * @param OrderInterface|null $order
      * @return WithdrawalDeclaration
      * @throws LocalizedException
      */
-    public function record(
-        OrderInterface $order,
-        string $name,
-        string $email,
-        array $items,
-        string $message
-    ): WithdrawalDeclaration {
+    public function record(WithdrawalRequest $request, ?OrderInterface $order): WithdrawalDeclaration
+    {
         throw new LocalizedException(__('Withdrawal declarations are not available.'));
     }
 }

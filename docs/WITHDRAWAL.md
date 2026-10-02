@@ -1,6 +1,6 @@
 # Right of withdrawal (EU) — RMA support
 
-Status: **in progress** — W1–W6 and W9–W11 implemented on
+Status: **in progress** — W1–W6, W9 and W11 implemented on
 `claude/withdrawal-support` (both modules); W7, W8 still planned. This document records what
 blocks the module from carrying an EU consumer withdrawal today, and the work
 needed in `Magenx_Rma` and `Magenx_RmaGraphQl` to close the gap.
@@ -47,7 +47,7 @@ References are to `main` at release 1.0.2 (`Magenx_Rma`) and the matching
 
 | # | Blocker | Where | Effect |
 |---|---|---|---|
-| G1 | Guest create only finds guest orders | `Model/Resolver/GuestOrderLookupTrait.php:45` (`customer_is_guest = 1`) | A registered customer who is logged out cannot withdraw by order number + email. Deliberate for return privacy; the withdrawal path needs a different rule (see W10). |
+| G1 | Guest create only finds guest orders | `Model/Resolver/GuestOrderLookupTrait.php:45` (`customer_is_guest = 1`) | A registered customer who is logged out cannot withdraw by order number + email. Deliberate for return privacy; the withdrawal form therefore does not look orders up at all (see W11). |
 | G2 | Eligibility failure is one opaque message | `CreateCustomerReturn.php:85-86`, `CreateGuestReturn.php:73-74` | "This order is not eligible for a return." The withdrawal flow cannot tell "late", "not shipped" and "nothing left to return" apart, so it cannot pick cancel vs RMA vs staff review. |
 | G3 | `reason_id` / `resolution_type_id` only checked for non-zero | `Service/RmaSubmitService.php:107` | An inactive reason id is accepted. Not a withdrawal blocker by itself, but the withdrawal path must set these server-side, never from client input. |
 | G4 | Guests cannot comment | `Model/Resolver/AddReturnComment.php` (customer-only) | A guest who withdrew cannot send a tracking number back through the API; it has to go through the ticket by email. |
@@ -122,7 +122,9 @@ Order matters: W1–W3 are prerequisites for everything else.
 submit(OrderInterface $order, array $items, string $ticketCode, string $declaredAt): WithdrawalResult
 ```
 
-Called by the submit mutation (W11) after the helpdesk ticket exists.
+**Staff tool.** The storefront form only records the declaration (W11);
+staff identify the order and items, then run this (admin action still to be
+added — see *Remaining*).
 `$items` is order item id => qty; empty means the whole order.
 
 - Idempotent per ticket: a second call with the same ticket code returns the
@@ -181,45 +183,32 @@ Called by the submit mutation (W11) after the helpdesk ticket exists.
 - `CustomerReturn` has `is_withdrawal`, `withdrawal_declared_at`,
   `helpdesk_ticket_code`, `return_carrier`, `return_tracking_number`.
 
-**W10 — Order lookup for the withdrawal form** — done
-- `withdrawalOrder(order_number, email)` returns `order_number`, `can_submit`
-  and per line `order_item_id`, `name`, `sku`, `qty_withdrawable`,
-  `qty_unshipped` (from `WithdrawalService::getWithdrawableItems()`).
-- Finds guest and registered-customer orders in the request's store; the
-  caller proves the order with the order email (case-insensitive) or by being
-  the logged-in owner. Same generic error for every miss. Not cacheable.
-  Turnstile-protect it at the storefront proxy (enumeration surface).
+**W10 — Order lookup** — dropped. The withdrawal form must not search for
+orders: the declaration is a legal act as stated, whatever the consumer typed.
 
 **W11 — Submit** — done
-- Contract `Api/WithdrawalDeclarationRecorderInterface`: persist the
-  declaration with its server arrival time and email the consumer a
-  confirmation with its content and that time, or throw. Implemented by the
-  helpdesk module through a DI preference. The default here,
-  `Model/Withdrawal/UnavailableDeclarationRecorder`, reports itself unavailable,
-  so `withdrawalOrder.can_submit` is false and `submitWithdrawal` fails with
-  "Withdrawal declarations are not available." until the helpdesk side ships.
-- `Service/WithdrawalSubmitService::submit()` records first, then calls
-  `WithdrawalService::submit()`. Only recording can fail the call; a failure
-  after it is logged as critical and left to staff.
-- `submitWithdrawal(input: {order_number, email, name, items?, message?})`
-  returns `ticket_code`, `received_at`, `return_number`, `order_canceled`.
-  Inputs trimmed and bounded (name 255, message 2000, 100 lines; duplicate
-  lines merged). The confirmation goes to the order's email. Review reasons
-  stay internal.
+- The form sends free text only: email, name, order number, items (product
+  names or SKUs; empty = whole order), message. The submit button is the
+  legal confirmation.
+- `Service/WithdrawalRequest` carries it; `Service/WithdrawalSubmitService`
+  records it through `Api/WithdrawalDeclarationRecorderInterface`. When the
+  order number matches an order of the store and the email matches the order
+  (or the logged-in customer placed it), the record is linked to that order
+  for staff — nothing else happens automatically, no RMA, no cancel.
+- Recorder implemented by Magenx_Helpdesk (ticket in the Withdrawal channel +
+  confirmation email); the default here reports itself unavailable, which
+  turns the mutation off.
+- `submitWithdrawal(input: {email, name, order_number, items, message})`
+  returns `ticket_code` and `received_at`.
 
-**Recorder** — done in `magenxcommerce/module-helpdesk`
-(`Model/Withdrawal/DeclarationRecorder.php`, branch `claude/withdrawal-support`):
-ticket in the `withdrawal` channel linked to the order (and account), staff
-notification, and a dedicated **Withdrawal Confirmation** mail to the order's
-email with order number, items, received time and ticket code. A failed mail
-leaves an internal note for staff. Magenx_Helpdesk now depends on Magenx_Rma.
+**Storefront** — done in `magenxcommerce/magenxcommerce`: one form, those five
+fields, Turnstile action `withdrawal`; falls back to the contactUs email when
+the backend lacks the mutation or the recorder.
 
-**Storefront** — done in `magenxcommerce/magenxcommerce`
-(branch `claude/cool-mendel-imyx5k`): both operations allowlisted via the
-returns manifest and Turnstile-protected (action `withdrawal`); the
-`/withdrawal` form looks the order up, offers whole order or selected lines,
-and submits; it falls back to the contactUs email when the backend lacks the
-operations or `can_submit` is false.
+**Remaining**
+- Admin action on the withdrawal ticket (or order) to run
+  `WithdrawalService::submit()` once staff have identified the order and items.
+- W7 return labels (carrier adapters), W8 received qty + credit memo.
 
 ## Admin setup after deploy
 
