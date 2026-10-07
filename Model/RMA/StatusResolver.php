@@ -15,8 +15,9 @@ use Magenx\Rma\Api\StatusRepositoryInterface;
 use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\ObjectManager\ResetAfterRequestInterface;
 
-class StatusResolver
+class StatusResolver implements ResetAfterRequestInterface
 {
     /**
      * @var array
@@ -31,6 +32,14 @@ class StatusResolver
         protected readonly StatusRepositoryInterface $statusRepository,
         protected readonly SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
     ) {
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function _resetState(): void
+    {
+        $this->cache = [];
     }
 
     /**
