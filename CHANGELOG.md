@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/magenxcommerce/module-rma/compare/v1.1.1...v1.1.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* reset the RMA status lookup for long-lived application servers ([#16](https://github.com/magenxcommerce/module-rma/issues/16)) ([18e916b](https://github.com/magenxcommerce/module-rma/commit/18e916b7be306656c52e941bc3b8c3ef3841b124))
+
 ## [1.1.1](https://github.com/magenxcommerce/module-rma/compare/v1.1.0...v1.1.1) (2026-10-02)
 
 
