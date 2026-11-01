@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/magenxcommerce/module-rma/compare/v1.1.2...v1.1.3) (2026-11-01)
+
+
+### Bug Fixes
+
+* require PHP 8.4 or newer ([#18](https://github.com/magenxcommerce/module-rma/issues/18)) ([d493d99](https://github.com/magenxcommerce/module-rma/commit/d493d9965ad351f8ede8af47cc8464fedc9cd122))
+
 ## [1.1.2](https://github.com/magenxcommerce/module-rma/compare/v1.1.1...v1.1.2) (2026-10-08)
 
 
