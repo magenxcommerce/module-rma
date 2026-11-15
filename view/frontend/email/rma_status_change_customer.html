@@ -2,6 +2,7 @@
 <!--@vars {
 "var customer_name":"Customer Name",
 "var rma.increment_id":"RMA Increment ID",
+"var rma_increment_id_html":"RMA Increment ID (escaped)",
 "var order.increment_id":"Order Increment ID",
 "var rma_status_label":"New RMA Status",
 "var store.frontend_name":"Store Name",
@@ -26,7 +27,7 @@
         <td>
             <p class="greeting">{{trans "%name," name=$customer_name}}</p>
             <p>
-                {{trans "Your return request <strong>#%increment_id</strong> for order <strong>#%order_increment_id</strong> has been updated with a status of <strong>%status</strong>." increment_id=$rma.increment_id order_increment_id=$order.increment_id status=$rma_status_label |raw}}
+                {{trans "Your return request <strong>#%increment_id</strong> for order <strong>#%order_increment_id</strong> has been updated with a status of <strong>%status</strong>." increment_id=$rma_increment_id_html order_increment_id=$order.increment_id status=$rma_status_label |raw}}
             </p>
         </td>
     </tr>
