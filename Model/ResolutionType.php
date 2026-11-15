@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: its identity purges the cached storefront choice lists.
  */
 declare(strict_types=1);
 
@@ -13,11 +14,22 @@ namespace Magenx\Rma\Model;
 
 use Magenx\Rma\Api\Data\ResolutionTypeInterface;
 use Magenx\Rma\Model\ResourceModel\ResolutionType as ResourceModel;
+use Magento\Framework\DataObject\IdentityInterface;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Framework\Exception\LocalizedException;
 
-class ResolutionType extends AbstractModel implements ResolutionTypeInterface
+class ResolutionType extends AbstractModel implements ResolutionTypeInterface, IdentityInterface
 {
+    /**
+     * Saving or deleting an entry purges the cached storefront choice lists.
+     *
+     * @return string[]
+     */
+    public function getIdentities(): array
+    {
+        return [ChoiceListsCache::TAG];
+    }
+
     /**
      * @var string
      */
