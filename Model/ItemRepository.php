@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: save() checks approved <= requested and received <= approved.
  */
 declare(strict_types=1);
 
@@ -22,6 +23,7 @@ use Magento\Framework\Api\SearchCriteriaInterface;
 use Magento\Framework\Api\SearchResultsInterface;
 use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Framework\Model\ResourceModel\Db\Collection\AbstractCollection;
@@ -94,7 +96,36 @@ class ItemRepository extends AbstractRepository implements ItemRepositoryInterfa
      */
     public function save(ItemInterface $item): ItemInterface
     {
+        $this->assertQuantities($item);
+
         return $this->saveEntity($item);
+    }
+
+    /**
+     * Approved never exceeds requested, received never exceeds approved (PRD FR-R7).
+     *
+     * @param ItemInterface $item
+     * @return void
+     * @throws LocalizedException
+     */
+    protected function assertQuantities(ItemInterface $item): void
+    {
+        $approved = $item->getQtyApproved();
+        $returned = $item->getQtyReturned();
+
+        if ($approved !== null && ($approved < 0 || $approved > $item->getQtyRequested())) {
+            throw new LocalizedException(
+                __('Approved qty for item %1 must be between 0 and the requested qty (%2).',
+                    $item->getOrderItemId(), $item->getQtyRequested())
+            );
+        }
+
+        if ($returned !== null && ($returned < 0 || $returned > (int)$approved)) {
+            throw new LocalizedException(
+                __('Received qty for item %1 must be between 0 and the approved qty (%2).',
+                    $item->getOrderItemId(), (int)$approved)
+            );
+        }
     }
 
     /**

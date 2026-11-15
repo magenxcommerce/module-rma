@@ -9,7 +9,8 @@
  * Modified by MagenX: a new RMA is created through RmaSubmitService::createRma(),
  * so header and items share one transaction and the new-return emails are sent;
  * the order's eligibility is re-checked on the server; reason and resolution are
- * editable on an existing RMA, except a withdrawal one.
+ * editable on an existing RMA, except a withdrawal one; staff record approved and
+ * received qty per item.
  */
 declare(strict_types=1);
 
@@ -17,6 +18,7 @@ namespace Magenx\Rma\Controller\Adminhtml\Rma;
 
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magenx\Rma\Api\Data\RMAInterface;
+use Magenx\Rma\Api\ItemRepositoryInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\Rma as BaseController;
 use Magenx\Rma\Model\RMA\StatusResolver;
@@ -40,6 +42,7 @@ class Save extends BaseController implements HttpPostActionInterface
      * @param RmaSubmitService $rmaSubmitService
      * @param StatusResolver $statusResolver
      * @param OrderEligibility $orderEligibility
+     * @param ItemRepositoryInterface $itemRepository
      */
     public function __construct(
         Context $context,
@@ -48,7 +51,8 @@ class Save extends BaseController implements HttpPostActionInterface
         protected readonly DataPersistorInterface $dataPersistor,
         protected readonly RmaSubmitService $rmaSubmitService,
         protected readonly StatusResolver $statusResolver,
-        protected readonly OrderEligibility $orderEligibility
+        protected readonly OrderEligibility $orderEligibility,
+        protected readonly ItemRepositoryInterface $itemRepository
     ) {
         parent::__construct($context);
     }
@@ -111,7 +115,48 @@ class Save extends BaseController implements HttpPostActionInterface
             $model->$setter($value);
         }
 
-        return $this->saveAndRedirect($resultRedirect, fn(): RMAInterface => $this->rmaRepository->save($model), $data, $id);
+        $itemQtys = (array)($data['item_qtys'] ?? []);
+
+        return $this->saveAndRedirect(
+            $resultRedirect,
+            function () use ($model, $itemQtys, $id): RMAInterface {
+                $this->saveItemQtys($id, $itemQtys);
+
+                return $this->rmaRepository->save($model);
+            },
+            $data,
+            $id
+        );
+    }
+
+    /**
+     * Records approved and received qty per item (PRD FR-R7); the repository checks
+     * approved <= requested and received <= approved before anything is written.
+     *
+     * @param int $rmaId
+     * @param array $itemQtys item id => ['qty_approved' => ?, 'qty_returned' => ?]
+     * @return void
+     * @throws LocalizedException
+     */
+    protected function saveItemQtys(int $rmaId, array $itemQtys): void
+    {
+        $items = [];
+        foreach ($itemQtys as $itemId => $qtys) {
+            $item = $this->itemRepository->get((int)$itemId);
+            if ($item->getRmaId() !== $rmaId) {
+                throw new LocalizedException(__('Item %1 does not belong to RMA %2.', $itemId, $rmaId));
+            }
+            foreach (['qty_approved' => 'setQtyApproved', 'qty_returned' => 'setQtyReturned'] as $field => $setter) {
+                if (is_array($qtys) && array_key_exists($field, $qtys)) {
+                    $item->$setter($qtys[$field] === '' || $qtys[$field] === null ? null : (int)$qtys[$field]);
+                }
+            }
+            $items[] = $item;
+        }
+
+        foreach ($items as $item) {
+            $this->itemRepository->save($item);
+        }
     }
 
     /**

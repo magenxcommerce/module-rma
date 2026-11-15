@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Magenx\Rma\Test\Unit\Controller\Adminhtml\Rma;
 
 use Magenx\Rma\Api\Data\RMAInterface;
+use Magenx\Rma\Api\Data\ItemInterface;
+use Magenx\Rma\Api\ItemRepositoryInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\Rma\Save;
 use Magenx\Rma\Model\RMA\StatusResolver;
@@ -33,6 +35,7 @@ class SaveTest extends TestCase
     private RMARepositoryInterface&MockObject $rmaRepository;
     private RmaSubmitService&MockObject $submitService;
     private OrderEligibility&MockObject $eligibility;
+    private ItemRepositoryInterface&MockObject $itemRepository;
     private Save $controller;
 
     protected function setUp(): void
@@ -62,6 +65,7 @@ class SaveTest extends TestCase
         $statusResolver = $this->createMock(StatusResolver::class);
         $statusResolver->method('getCodeById')->with(2)->willReturn('approved');
         $this->eligibility = $this->createMock(OrderEligibility::class);
+        $this->itemRepository = $this->createMock(ItemRepositoryInterface::class);
 
         $this->controller = new Save(
             $context,
@@ -70,7 +74,8 @@ class SaveTest extends TestCase
             $this->createMock(DataPersistorInterface::class),
             $this->submitService,
             $statusResolver,
-            $this->eligibility
+            $this->eligibility,
+            $this->itemRepository
         );
 
         $this->request->method('getPostValue')->willReturn([
@@ -142,12 +147,12 @@ class SaveTest extends TestCase
         return $rma;
     }
 
-    private function postEdit(): void
+    private function postEdit(array $extra = []): void
     {
         $this->request = $this->createMock(Http::class);
         $this->request->method('getPostValue')->willReturn([
             'entity_id' => 10, 'status_id' => 2, 'reason_id' => 6, 'resolution_type_id' => 4,
-        ]);
+        ] + $extra);
         $property = new \ReflectionProperty($this->controller, '_request');
         $property->setValue($this->controller, $this->request);
     }
@@ -168,6 +173,45 @@ class SaveTest extends TestCase
         $this->postEdit();
         $rma = $this->existingRma(true);
         $rma->expects($this->never())->method('setReasonId');
+        $this->rmaRepository->expects($this->never())->method('save');
+        $this->messageManager->expects($this->once())->method('addErrorMessage');
+
+        $this->controller->execute();
+    }
+
+    public function testItemQtysAreRecordedBeforeTheRma(): void
+    {
+        $this->postEdit(['item_qtys' => [40 => ['qty_approved' => '2', 'qty_returned' => '']]]);
+        $rma = $this->existingRma(false);
+        $item = $this->createMock(ItemInterface::class);
+        $item->method('getRmaId')->willReturn(10);
+        $item->expects($this->once())->method('setQtyApproved')->with(2);
+        $item->expects($this->once())->method('setQtyReturned')->with(null);
+        $this->itemRepository->method('get')->with(40)->willReturn($item);
+
+        $calls = [];
+        $this->itemRepository->method('save')->willReturnCallback(function () use (&$calls, $item) {
+            $calls[] = 'item';
+            return $item;
+        });
+        $this->rmaRepository->method('save')->willReturnCallback(function () use (&$calls, $rma) {
+            $calls[] = 'rma';
+            return $rma;
+        });
+
+        $this->controller->execute();
+
+        $this->assertSame(['item', 'rma'], $calls);
+    }
+
+    public function testItemOfAnotherRmaIsRefused(): void
+    {
+        $this->postEdit(['item_qtys' => [40 => ['qty_approved' => '1']]]);
+        $this->existingRma(false);
+        $this->itemRepository->method('get')->willReturn(
+            $this->createConfiguredMock(ItemInterface::class, ['getRmaId' => 99])
+        );
+        $this->itemRepository->expects($this->never())->method('save');
         $this->rmaRepository->expects($this->never())->method('save');
         $this->messageManager->expects($this->once())->method('addErrorMessage');
 
