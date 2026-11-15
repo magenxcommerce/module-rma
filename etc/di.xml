@@ -163,6 +163,9 @@
         </arguments>
     </virtualType>
 
+    <!-- The returnable-quantity rule, as other modules opening returns depend on it. -->
+    <preference for="Magenx\Rma\Api\OrderEligibilityInterface" type="Magenx\Rma\Service\OrderEligibility"/>
+
     <!-- Withdrawal declarations are recorded by the helpdesk module, which
          overrides this preference; until then the withdrawal mutation is off. -->
     <preference for="Magenx\Rma\Api\WithdrawalDeclarationRecorderInterface"
