@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: --limit (default 100); order numbers read in one query.
  */
 declare(strict_types=1);
 
@@ -20,8 +21,7 @@ use Magento\Framework\Api\Search\FilterGroupBuilder;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Api\SortOrderBuilder;
 use Magento\Framework\Console\Cli;
-use Magento\Framework\Exception\NoSuchEntityException;
-use Magento\Sales\Api\OrderRepositoryInterface;
+use Magento\Framework\App\ResourceConnection;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
@@ -34,6 +34,8 @@ class ListCommand extends Command
     const OPTION_FROM = 'from';
     const OPTION_TO = 'to';
     const OPTION_STORE = 'store';
+    const OPTION_LIMIT = 'limit';
+    const DEFAULT_LIMIT = 100;
 
     /**
      * @param RMARepositoryInterface $rmaRepository
@@ -43,7 +45,7 @@ class ListCommand extends Command
      * @param SortOrderBuilder $sortOrderBuilder
      * @param StatusResolver $statusResolver
      * @param StatusCollectionFactory $statusCollectionFactory
-     * @param OrderRepositoryInterface $orderRepository
+     * @param ResourceConnection $resourceConnection
      */
     public function __construct(
         protected readonly RMARepositoryInterface $rmaRepository,
@@ -53,7 +55,7 @@ class ListCommand extends Command
         protected readonly SortOrderBuilder $sortOrderBuilder,
         protected readonly StatusResolver $statusResolver,
         protected readonly StatusCollectionFactory $statusCollectionFactory,
-        protected readonly OrderRepositoryInterface $orderRepository
+        protected readonly ResourceConnection $resourceConnection
     ) {
         parent::__construct();
     }
@@ -88,6 +90,13 @@ class ListCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Filter by store ID'
+            )
+            ->addOption(
+                self::OPTION_LIMIT,
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Show at most this many RMAs, newest first',
+                (string)self::DEFAULT_LIMIT
             );
     }
 
@@ -159,6 +168,9 @@ class ListCommand extends Command
         $searchCriteria = $this->searchCriteriaBuilder->create();
         $searchCriteria->setFilterGroups($filterGroups);
         $searchCriteria->setSortOrders([$sortOrder]);
+        // Bounded: an unfiltered run used to load every RMA (and one order per row).
+        $searchCriteria->setPageSize(max(1, (int)$input->getOption(self::OPTION_LIMIT)));
+        $searchCriteria->setCurrentPage(1);
 
         $results = $this->rmaRepository->getList($searchCriteria);
 
@@ -168,12 +180,16 @@ class ListCommand extends Command
         }
 
         $statusLabels = $this->loadStatusLabels();
+        $rmas = $results->getItems();
+        $orderNumbers = $this->loadOrderNumbers(
+            array_map(static fn(RMAInterface $rma): int => (int)$rma->getOrderId(), $rmas)
+        );
 
         $table = new Table($output);
         $table->setHeaders(['Increment ID', 'Order #', 'Customer Name', 'Customer Email', 'Status', 'Created At']);
 
-        foreach ($results->getItems() as $rma) {
-            $orderIncrementId = $this->getOrderIncrementId($rma->getOrderId());
+        foreach ($rmas as $rma) {
+            $orderIncrementId = $orderNumbers[(int)$rma->getOrderId()] ?? (string)$rma->getOrderId();
             $statusLabel = $statusLabels[(int)$rma->getStatusId()] ?? 'Unknown';
 
             $table->addRow([
@@ -187,7 +203,11 @@ class ListCommand extends Command
         }
 
         $table->render();
-        $output->writeln(sprintf('<info>Total: %d RMA(s)</info>', $results->getTotalCount()));
+        $output->writeln(sprintf(
+            '<info>Showing %d of %d RMA(s)</info>',
+            count($rmas),
+            $results->getTotalCount()
+        ));
 
         return Cli::RETURN_SUCCESS;
     }
@@ -208,15 +228,24 @@ class ListCommand extends Command
     }
 
     /**
-     * @param int $orderId
-     * @return string
+     * Order numbers for the listed RMAs, in one query.
+     *
+     * @param int[] $orderIds
+     * @return array<int, string>
      */
-    protected function getOrderIncrementId(int $orderId): string
+    protected function loadOrderNumbers(array $orderIds): array
     {
-        try {
-            return $this->orderRepository->get($orderId)->getIncrementId();
-        } catch (NoSuchEntityException) {
-            return (string)$orderId;
+        $orderIds = array_values(array_unique(array_filter($orderIds)));
+        if (empty($orderIds)) {
+            return [];
         }
+
+        $connection = $this->resourceConnection->getConnection();
+
+        return array_map('strval', $connection->fetchPairs(
+            $connection->select()
+                ->from($this->resourceConnection->getTableName('sales_order'), ['entity_id', 'increment_id'])
+                ->where('entity_id IN (?)', $orderIds)
+        ));
     }
 }
