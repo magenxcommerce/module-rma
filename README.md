@@ -46,7 +46,7 @@ What changed on the fork:
 | `etc/schema.graphqls` + `Model/Resolver/**` moved to `Magenx_RmaGraphQl` | Backend / GraphQL split |
 | The whole Luma + Hyvä frontend removed (50 files) | The storefront is headless Next.js — see [Storefront](#storefront-headless) |
 | `Setup/Patch/Data/*` declare their old FQCNs in `getAliases()` | Stops Magento re-running the seed patches under the new class names |
-| `magento/module-customer` added to `composer.json` | Upstream omits it despite using `CustomerRepositoryInterface` |
+| `magento/module-customer` added to `composer.json` | `rma_entity.customer_id` has a foreign key to `customer_entity` |
 
 **Deliberately unchanged**, because they are live data keys: the 12 `rma_*`
 table names, the `rma/**` config section, the `rma` **admin** route front name,
@@ -57,7 +57,7 @@ Luma controllers — nothing headless used it.)
 ## Installation
 
 Place the module under `app/code/Magenx/Rma` (or install
-`magenx/module-rma` via Composer), then:
+`magenxcommerce/module-rma` via Composer), then:
 
 ```bash
 bin/magento module:enable Magenx_Rma
@@ -98,7 +98,7 @@ Module settings are located at **Stores > Configuration > Sales > RMA - Return M
 | Field | Type | Default | Description |
 |---|---|---|---|
 | Enable RMA | Yes/No | No | Enable or disable the RMA feature (scope: website) |
-| Increment ID Prefix | Text | `RMA-` | Prefix for the return increment ID (e.g. `RMA-000001`) |
+| Increment ID Prefix | Text | `RMA-` | Prefix for the return increment ID (e.g. `RMA-000000001`) |
 | Return Period (Days) | Numeric | `30` | Number of days after order placement within which a return can be requested |
 
 ### Policy
@@ -107,6 +107,17 @@ Module settings are located at **Stores > Configuration > Sales > RMA - Return M
 |---|---|---|---|
 | Auto-Approve Returns | Yes/No | No | When enabled, new return requests are automatically approved |
 | Allowed Order Statuses | Multiselect | `complete` | Only orders with these statuses can have a return request |
+
+### Right of Withdrawal (EU)
+
+Withdrawal returns ignore the return period and allowed order statuses above. See `docs/WITHDRAWAL.md`.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| Create RMAs from Withdrawals | Yes/No | No | Needs Enable RMA. When off, declarations are only recorded by the help desk |
+| Withdrawal Period (Days) | Numeric | `14` | Counted from the last shipment; a later declaration is accepted but flagged for review |
+| Delivery Transit (Days) | Numeric | `0` | Added to the shipment date to approximate delivery |
+| Auto-Approve Withdrawal RMAs | Yes/No | Yes | Start as Approved (Yes) or New Request (No); late declarations always start as New Request |
 
 ### Email Notifications
 
@@ -122,9 +133,9 @@ Module settings are located at **Stores > Configuration > Sales > RMA - Return M
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| Allowed File Extensions | Text | `jpg,jpeg,png,gif,webp,mp4,mov,pdf,doc,docx,zip` | Comma-separated list of allowed file extensions |
+| Allowed File Extensions | Multiselect | `jpg,jpeg,png,gif,webp,mp4,mov,pdf,doc,docx` | Extensions an upload may have; the content type is checked too |
 | Maximum File Size (MB) | Numeric | `10` | Maximum allowed file size in megabytes per single file |
-| Maximum Files Per Upload | Numeric | `5` | Maximum number of files allowed per RMA creation or comment |
+| Maximum Files Per Upload | Numeric | `5` | Maximum number of files per RMA creation or comment; more files refuse the whole upload |
 
 ## Admin Area
 
@@ -141,15 +152,15 @@ Module entries are located under **Sales > RMA**:
 ### Creating an RMA from admin
 
 1. Go to **Sales > RMA > RMA Requests**, click **Add New RMA**
-2. Search and select an order in the **Order** field (only shows orders from websites with RMA enabled)
+2. Search and select an order in the **Order** field (only eligible orders of websites with RMA enabled; newest first)
 3. Customer fields (name, email) and store are automatically filled from the order
 4. Select reason and resolution type
 5. In the **Items to Return** section, select the order items to include in the return, specifying quantity and condition for each
-6. Save — the system automatically generates an increment ID (e.g. `RMA-000001`) and sends notification emails
+6. Save — eligibility is checked again, header and items are saved in one transaction, an increment ID (e.g. `RMA-000000001`) is generated and the new-return emails are sent to the customer and the admin address
 
 ### Edit RMA
 
-In edit mode, the form shows order and item information as read-only. You can modify status, reason, resolution type and admin notes.
+In edit mode, the form shows order and item information as read-only. You can change the status, reason and resolution type (a withdrawal RMA keeps the reason and resolution the system set), and record the approved and received quantity of each item (approved ≤ requested, received ≤ approved). Staff notes are internal comments, see below.
 
 Changing the status automatically sends a notification email to the customer.
 
@@ -186,9 +197,9 @@ the Next.js storefront and talk to `Magenx_RmaGraphQl` over GraphQL:
 The upstream module's `Controller/Customer`, `Controller/Guest`,
 `Block/{Customer,Guest,Sales}`, `etc/frontend/*` and
 `view/frontend/{layout,templates,web}` trees — Luma **and** Hyvä, plus the
-`hyva_config_generate_before` observer — were removed in the fork. `view/base/web/js`
-stays: the admin comments template loads `rma-comments` / `rma-file-upload` /
-`rma-utils` from it. `view/frontend/email` stays too — the three RMA notification
+`hyva_config_generate_before` observer — were removed in the fork. The admin
+comments template loads `rma-comments` / `rma-file-upload` / `rma-utils` from
+`view/adminhtml/web/js`. `view/frontend/email` stays too — the three RMA notification
 templates are declared `area="frontend"` in `etc/email_templates.xml`.
 
 ## Order Eligibility for RMA
@@ -198,15 +209,19 @@ An order is eligible for a return request if **all** of these conditions are met
 1. **RMA enabled** — the module is enabled for the order's website (`isEnabled()`)
 2. **Allowed status** — the order status is among those configured in "Allowed Order Statuses"
 3. **Return period** — the order date is within the period configured in "Return Period (Days)". If the period is `0`, returns are always allowed (no time limit)
-4. **Available items** — the order has at least one item with remaining returnable quantity (qty ordered − qty already requested in other RMAs > 0). Virtual items, downloadable items, and parent items of configurable/bundle products are excluded
+4. **Available items** — the order has at least one item with returnable quantity: `min(qty shipped, qty ordered − refunded − canceled) − qty held by open RMAs > 0`. Rejected, canceled and refunded RMAs release their units. Virtual items, downloadable items, and child items of configurable/bundle products are excluded (a bundle counts complete bundles shipped)
 
 The logic is centralized in the `Service\OrderEligibility` service with the following methods:
 
 | Method | Description |
 |---|---|
 | `isOrderEligible(OrderInterface $order): bool` | Checks all 4 conditions |
+| `explain(OrderInterface $order): string` | Which condition failed: one of the `RESULT_*` constants (`ok`, `disabled`, `order_status`, `return_period`, `not_shipped`, `no_items`) |
+| `describe(string $result): Phrase` | The customer-facing message for an `explain()` result |
 | `getEligibleItems(OrderInterface $order): array` | Returns items with available quantity |
-| `getCustomerEligibleOrders(int $customerId, int $storeId): Collection` | Customer orders matching conditions 1-3 |
+| `getAlreadyRequestedQty(int $orderId): array` | Qty held by open RMAs, per order item |
+
+Creating a return locks the order row for the length of the transaction, so two parallel requests cannot together take more units than the customer holds.
 
 ## Repositories and Service Contracts
 
@@ -221,6 +236,7 @@ Each entity exposes a repository with interfaces in `Api/`:
 | `ItemConditionRepositoryInterface` | `Model\ItemConditionRepository` | `get`, `save`, `delete`, `deleteById`, `getList` |
 | `ItemRepositoryInterface` | `Model\ItemRepository` | `get`, `save`, `delete`, `deleteById`, `getList` |
 | `CommentRepositoryInterface` | `Model\CommentRepository` | `get`, `save`, `delete`, `deleteById`, `getList` |
+| `AttachmentRepositoryInterface` | `Model\AttachmentRepository` | `get`, `save`, `delete`, `deleteById`, `getList` |
 
 All `getList` methods support `SearchCriteriaInterface` for filtering, sorting and pagination.
 
@@ -230,7 +246,7 @@ The module dispatches custom events in `RMARepository::save()` to allow other mo
 
 ### How dispatching works
 
-1. **Creation**: when a new RMA is saved, `rma_created_after` fires
+1. **Creation**: when a new RMA is saved, `rma_created_after` fires. It fires inside the save, **before the items are written and before the transaction commits** (the transaction can still roll back). For side effects that need the items or must not run on a failed create, observe `rma_commit_after`, which `RmaSubmitService::createRma()` dispatches after commit (storefront, admin and withdrawal creates; not `POST /V1/rma`)
 2. **Status change**: when the status changes, **two** events fire in sequence:
    - `rma_status_change_after` (generic, fires on any transition)
    - A specific semantic event based on the new status (e.g. `rma_approved_after`)
@@ -247,6 +263,8 @@ The module dispatches custom events in `RMARepository::save()` to allow other mo
 | `rma_received_after` | Status &rarr; Received by Admin | `rma`, `old_status_id`, `new_status_id` |
 | `rma_canceled_after` | Status &rarr; Canceled by Customer | `rma`, `old_status_id`, `new_status_id` |
 | `rma_resolved_after` | Status &rarr; Resolved | `rma`, `old_status_id`, `new_status_id` |
+| `rma_refunded_after` | Status &rarr; Refunded | `rma`, `old_status_id`, `new_status_id` |
+| `rma_commit_after` | New RMA committed by `RmaSubmitService::createRma()` | `rma` |
 
 ### Example: Observer to book a carrier when a return is approved
 
@@ -346,6 +364,8 @@ All endpoints require an admin integration token (`Authorization: Bearer <token>
 | `DELETE` | `/V1/rma/:entityId` | `Magenx_Rma::rma_manage` | Delete RMA |
 | `GET` | `/V1/rma/search` | `Magenx_Rma::rma_manage` | Search RMAs (SearchCriteria) |
 
+`PUT` may carry only the fields it changes; the rest keep their stored values. Order, customer, store and increment ID cannot be changed after creation. `POST /V1/rma` saves a header only and sends no email; add items with the endpoint below.
+
 ### RMA Items
 
 Items are managed as a **sub-resource** of the parent RMA, following the same pattern as Magento core (e.g. `OrderInterface` / `OrderItemRepositoryInterface`). The `GET /V1/rma/:entityId` endpoint returns the RMA header only — to retrieve items, use the dedicated endpoints below.
@@ -355,6 +375,8 @@ Items are managed as a **sub-resource** of the parent RMA, following the same pa
 | `GET` | `/V1/rma/:rmaId/items` | `Magenx_Rma::rma_manage` | List items for an RMA (SearchCriteria) |
 | `POST` | `/V1/rma/:rmaId/items` | `Magenx_Rma::rma_manage` | Add item to an RMA |
 | `DELETE` | `/V1/rma/:rmaId/items/:itemId` | `Magenx_Rma::rma_manage` | Remove item from an RMA |
+
+A new item must be an eligible line of the RMA's order, with a quantity between 1 and its returnable quantity. An update cannot move an item to another RMA or order line, and approved ≤ requested, received ≤ approved.
 
 ### RMA Comments
 
@@ -430,6 +452,17 @@ Status codes are defined as constants in `Model\RMA\StatusCodes`:
 | `RECEIVED_BY_ADMIN` | `received_by_admin` |
 | `CANCELED_BY_CUSTOMER` | `canceled_by_customer` |
 | `RESOLVED` | `resolved` |
+| `REFUNDED` | `refunded` |
+
+These statuses are protected: they cannot be deleted (admin or API) and their codes cannot change. The `withdrawal` reason and the `refund` resolution are protected the same way. A lookup still used by an RMA cannot be deleted; deactivate it instead.
+
+## CLI
+
+| Command | Description |
+|---|---|
+| `bin/magento rma:list [--status=] [--from=] [--to=] [--store=] [--limit=100]` | Newest RMAs matching the filters |
+| `bin/magento rma:status <increment-id>` | Details of one RMA |
+| `bin/magento rma:cleanup --days=N [--dry-run]` | Cancels RMAs that wait on the customer (`need_details`, `approved`) and were not updated for N days. Never touches withdrawal RMAs or RMAs waiting on the merchant |
 
 ## Tests
 
