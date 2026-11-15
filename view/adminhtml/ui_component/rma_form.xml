@@ -96,7 +96,7 @@
         <block class="Magenx\Rma\Block\Adminhtml\Rma\Edit\OrderItems" name="rma_order_items_block"/>
     </htmlContent>
 
-    <!-- Processing: status (always editable), reason + resolution (editable in creation, disabled in edit) -->
+    <!-- Processing: status, reason and resolution, editable in creation and edit (a withdrawal keeps its system reason and resolution) -->
     <fieldset name="processing" sortOrder="20">
         <settings>
             <label translate="true">Processing</label>

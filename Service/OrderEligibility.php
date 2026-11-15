@@ -17,6 +17,7 @@ use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\RMA\StatusCodes;
 use Magenx\Rma\Model\RMA\StatusResolver;
 use Magenx\Rma\Model\ResourceModel\Item\CollectionFactory as RmaItemCollectionFactory;
+use Magento\Framework\Phrase;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 
@@ -53,6 +54,24 @@ class OrderEligibility
         protected readonly RmaItemCollectionFactory $rmaItemCollectionFactory,
         protected readonly StatusResolver $statusResolver
     ) {
+    }
+
+    /**
+     * The customer-facing refusal for an explain() result (PRD FR-E2: one specific reason).
+     *
+     * @param string $result One of the RESULT_* constants
+     * @return Phrase
+     */
+    public function describe(string $result): Phrase
+    {
+        return match ($result) {
+            self::RESULT_DISABLED => __('Returns are not available for this store.'),
+            self::RESULT_ORDER_STATUS => __('Returns are not available for orders in this status.'),
+            self::RESULT_RETURN_PERIOD => __('The return period for this order has ended.'),
+            self::RESULT_NOT_SHIPPED => __('Nothing from this order has shipped yet.'),
+            self::RESULT_NO_ITEMS => __('All items of this order are already returned or in an open return.'),
+            default => __('This order is not eligible for a return.'),
+        };
     }
 
     /**

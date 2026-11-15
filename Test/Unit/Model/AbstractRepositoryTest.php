@@ -238,7 +238,7 @@ class AbstractRepositoryTest extends TestCase
         $this->repository->delete($this->entity);
     }
 
-    public function testDeleteEntityExceptionMessageIncludesEntityLabelAndOriginalMessage(): void
+    public function testDeleteEntityExceptionMessageNamesTheEntityButNotTheDatabaseError(): void
     {
         $this->resourceModel->method('delete')
             ->willThrowException(new \Exception('foreign key constraint'));
@@ -248,7 +248,8 @@ class AbstractRepositoryTest extends TestCase
             $this->fail('Expected CouldNotDeleteException');
         } catch (CouldNotDeleteException $e) {
             $this->assertStringContainsString('widget', $e->getMessage());
-            $this->assertStringContainsString('foreign key constraint', $e->getMessage());
+            $this->assertStringNotContainsString('foreign key constraint', $e->getMessage());
+            $this->assertSame('foreign key constraint', $e->getPrevious()->getMessage());
         }
     }
 

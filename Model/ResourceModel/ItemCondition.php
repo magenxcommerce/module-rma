@@ -6,6 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: codes are immutable and system codes cannot be deleted; store
+ * labels can be read for many entries at once.
  */
 declare(strict_types=1);
 
@@ -16,15 +18,20 @@ use Magento\Framework\Model\ResourceModel\Db\AbstractDb;
 
 class ItemCondition extends AbstractDb
 {
-    /**
-     * @var string
-     */
-    protected string $_eventPrefix = 'rma_item_condition_resource_model';
+    use LookupCodeGuardTrait;
 
     /**
      * @var string
      */
     protected string $labelsTable = '';
+
+    /**
+     * @return string[]
+     */
+    protected function getProtectedCodes(): array
+    {
+        return [];
+    }
 
     /**
      * @return void
@@ -48,6 +55,31 @@ class ItemCondition extends AbstractDb
             ->where('condition_id = ?', (int)$object->getId());
 
         return $connection->fetchPairs($select);
+    }
+
+    /**
+     * Store labels of many entries in one query, for collections.
+     *
+     * @param int[] $ids
+     * @return array<int, array<int, string>> entry id => [store id => label]
+     */
+    public function getStoreLabelsByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $connection = $this->getConnection();
+        $select = $connection->select()
+            ->from($this->labelsTable, ['condition_id', 'store_id', 'label'])
+            ->where('condition_id IN (?)', array_map('intval', $ids));
+
+        $labels = [];
+        foreach ($connection->fetchAll($select) as $row) {
+            $labels[(int)$row['condition_id']][(int)$row['store_id']] = (string)$row['label'];
+        }
+
+        return $labels;
     }
 
     /**

@@ -6,13 +6,13 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: the attachment limit getters live here (the shared trait had no other user).
  */
 declare(strict_types=1);
 
 namespace Magenx\Rma\Block\Adminhtml\Rma\Edit;
 
 use Magenx\Rma\Api\RMARepositoryInterface;
-use Magenx\Rma\Block\Trait\AttachmentConfigTrait;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Service\AttachmentService;
 use Magenx\Rma\Service\CommentFormatter;
@@ -22,8 +22,6 @@ use Magento\Framework\Exception\NoSuchEntityException;
 
 class Comments extends Template
 {
-    use AttachmentConfigTrait;
-
     /**
      * @var string
      */
@@ -61,6 +59,30 @@ class Comments extends Template
     public function getRmaId(): int
     {
         return (int)$this->getRequest()->getParam('entity_id');
+    }
+
+    /**
+     * @return string
+     */
+    public function getAllowedExtensions(): string
+    {
+        return implode(',', $this->moduleConfig->getAllowedAttachmentExtensions($this->getAttachmentConfigStoreId()));
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxFileSize(): int
+    {
+        return $this->moduleConfig->getMaxAttachmentFileSize($this->getAttachmentConfigStoreId());
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxFiles(): int
+    {
+        return $this->moduleConfig->getMaxAttachmentFiles($this->getAttachmentConfigStoreId());
     }
 
     /**

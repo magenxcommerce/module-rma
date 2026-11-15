@@ -6,7 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
- * Modified by MagenX: save() enforces the withdrawal status rules.
+ * Modified by MagenX: save() enforces the withdrawal status rules; an update keeps
+ * stored fields it does not carry, and order, customer, store and reference are fixed.
  */
 declare(strict_types=1);
 
@@ -28,10 +29,21 @@ use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Model\AbstractModel;
 use Exception;
 
 class RMARepository implements RMARepositoryInterface
 {
+    /**
+     * Fields fixed at creation.
+     */
+    const IMMUTABLE_FIELDS = [
+        RMAInterface::ORDER_ID,
+        RMAInterface::CUSTOMER_ID,
+        RMAInterface::STORE_ID,
+        RMAInterface::INCREMENT_ID,
+    ];
+
     /**
      * @param ResourceModel $resourceModel
      * @param RMAFactory $rmaFactory
@@ -99,6 +111,11 @@ class RMARepository implements RMARepositoryInterface
     {
         $isNew = !$rma->getEntityId();
         $stored = $isNew ? null : $this->get((int) $rma->getEntityId());
+
+        if ($stored !== null) {
+            $this->fillFromStored($rma, $stored);
+        }
+
         $oldStatusId = $stored !== null ? (int) $stored->getStatusId() : null;
 
         $this->withdrawalStatusGuard->assertAllowed($rma, $stored);
@@ -113,6 +130,38 @@ class RMARepository implements RMARepositoryInterface
         $this->dispatchEvents($rma, $isNew, $oldStatusId);
 
         return $rma;
+    }
+
+    /**
+     * An update may carry only the fields it changes (REST PUT maps the body onto an
+     * empty model). Fill the rest from the stored row so a missing status does not read
+     * as a change to 0, a missing withdrawal flag does not trip the guard and a missing
+     * reference is not regenerated. Order, customer, store and reference never change
+     * after creation (PRD BR-2, BR-6, FR-R6).
+     *
+     * @param RMAInterface $rma
+     * @param RMAInterface $stored
+     * @return void
+     */
+    protected function fillFromStored(RMAInterface $rma, RMAInterface $stored): void
+    {
+        if (!$rma instanceof AbstractModel || !$stored instanceof AbstractModel) {
+            return;
+        }
+
+        foreach ((array)$stored->getData() as $key => $value) {
+            // Leave the timestamps to the database, so updated_at still moves.
+            if (in_array($key, [RMAInterface::CREATED_AT, RMAInterface::UPDATED_AT], true)) {
+                continue;
+            }
+            if (!$rma->hasData($key)) {
+                $rma->setData($key, $value);
+            }
+        }
+
+        foreach (self::IMMUTABLE_FIELDS as $field) {
+            $rma->setData($field, $stored->getData($field));
+        }
     }
 
     /**
@@ -163,8 +212,8 @@ class RMARepository implements RMARepositoryInterface
      * rma_created_after has no observer inside this module, by design: it is the
      * extension point for integrations that want every creation path, including the
      * admin grid and POST /V1/rma. The module's own new-RMA e-mails instead listen on
-     * rma_commit_after, which only RmaSubmitService::createRma() dispatches — so
-     * admin- and REST-created RMAs send no notification. See etc/events.xml.
+     * rma_commit_after, which only RmaSubmitService::createRma() dispatches (storefront,
+     * admin and withdrawal creates); POST /V1/rma sends no notification. See etc/events.xml.
      *
      * @param RMAInterface $rma
      * @param bool $isNew

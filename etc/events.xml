@@ -8,10 +8,10 @@
     identifiers renamed, GraphQL surface split into a sibling module.
 
     New-RMA e-mails hang off rma_commit_after, which RmaSubmitService::createRma()
-    dispatches once its transaction has committed — i.e. the customer-initiated
-    (GraphQL) create-return flow. This is deliberate: RMAs opened by an admin from
-    Sales > RMA, or through POST /V1/rma, do NOT notify the customer or the admin
-    recipient, because those paths save through RMARepository directly.
+    dispatches once its transaction has committed: the storefront (GraphQL) flow,
+    the admin Sales > RMA > New flow and the withdrawal action all go through it.
+    POST /V1/rma still saves through RMARepository directly (a header without
+    items) and sends nothing.
 
     RMARepository also dispatches rma_created_after on every insert, and nothing in
     this module subscribes to it. That is intentional too — it is left as the

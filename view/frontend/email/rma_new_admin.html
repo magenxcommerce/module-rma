@@ -3,6 +3,7 @@
 "var customer_name":"Customer Name",
 "var customer_email":"Customer Email",
 "var rma.increment_id":"RMA Increment ID",
+"var rma_increment_id_html":"RMA Increment ID (escaped)",
 "var order.increment_id":"Order Increment ID",
 "var rma_reason_label":"RMA Reason",
 "var rma_resolution_label":"RMA Resolution Type",
@@ -23,7 +24,7 @@
     <tr class="email-intro">
         <td>
             <p>
-                {{trans "A new return request <strong>#%increment_id</strong> has been submitted." increment_id=$rma.increment_id |raw}}
+                {{trans "A new return request <strong>#%increment_id</strong> has been submitted." increment_id=$rma_increment_id_html |raw}}
             </p>
         </td>
     </tr>

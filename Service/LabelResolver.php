@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: resolved values are kept for the request.
  */
 declare(strict_types=1);
 
@@ -16,14 +17,24 @@ use Magenx\Rma\Api\ReasonRepositoryInterface;
 use Magenx\Rma\Api\ResolutionTypeRepositoryInterface;
 use Magenx\Rma\Api\StatusRepositoryInterface;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\ObjectManager\ResetAfterRequestInterface;
 use Magento\Store\Model\StoreManagerInterface;
 
-class LabelResolver
+class LabelResolver implements ResetAfterRequestInterface
 {
     const TYPE_STATUS = 'status';
     const TYPE_REASON = 'reason';
     const TYPE_RESOLUTION_TYPE = 'resolution_type';
     const TYPE_ITEM_CONDITION = 'item_condition';
+
+    /**
+     * Resolved values per request, keyed type:id:store. A page of returns asks for the
+     * same handful of statuses, reasons and conditions many times; each miss is a row
+     * load plus a label query.
+     *
+     * @var array<string, array|null>
+     */
+    private array $resolved = [];
 
     /**
      * @param StatusRepositoryInterface $statusRepository
@@ -50,18 +61,31 @@ class LabelResolver
     public function resolveAsArray(string $type, int $entityId, ?int $storeId = null): ?array
     {
         $storeId ??= $this->getCurrentStoreId();
+        $key = $type . ':' . $entityId . ':' . $storeId;
+
+        if (array_key_exists($key, $this->resolved)) {
+            return $this->resolved[$key];
+        }
 
         try {
             $entity = $this->loadEntity($type, $entityId);
 
-            return [
+            return $this->resolved[$key] = [
                 'id' => $entity->getEntityId(),
                 'code' => $entity->getCode(),
                 'label' => (string)__($entity->getStoreLabel($storeId)),
             ];
         } catch (NoSuchEntityException) {
-            return null;
+            return $this->resolved[$key] = null;
         }
+    }
+
+    /**
+     * @return void
+     */
+    public function _resetState(): void
+    {
+        $this->resolved = [];
     }
 
     /**

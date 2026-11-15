@@ -35,6 +35,7 @@ use Magento\Sales\Api\OrderManagementInterface;
 use Magento\Sales\Model\Order;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Magento\Framework\Lock\LockManagerInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -57,6 +58,10 @@ class WithdrawalServiceTest extends TestCase
     private array $requested = [];
     private ?RMAInterface $existingRma = null;
     private bool $enabled = true;
+    private bool $lockFree = true;
+    /** @var int[] order item ids that cannot be returned (virtual) */
+    private array $virtualIds = [];
+    private LockManagerInterface&MockObject $lockManager;
 
     protected function setUp(): void
     {
@@ -65,7 +70,9 @@ class WithdrawalServiceTest extends TestCase
         $this->moduleConfig->method('isWithdrawalAutoApproveEnabled')->willReturn(true);
 
         $this->orderEligibility = $this->createMock(OrderEligibility::class);
-        $this->orderEligibility->method('isReturnableType')->willReturn(true);
+        $this->orderEligibility->method('isReturnableType')->willReturnCallback(
+            fn(OrderItemInterface $item) => !in_array((int)$item->getItemId(), $this->virtualIds, true)
+        );
         $this->orderEligibility->method('getReturnableQty')->willReturnCallback(
             fn(OrderItemInterface $item) => $this->lines[(int)$item->getItemId()]['shipped']
         );
@@ -106,6 +113,9 @@ class WithdrawalServiceTest extends TestCase
 
         $this->orderManagement = $this->createMock(OrderManagementInterface::class);
 
+        $this->lockManager = $this->createMock(LockManagerInterface::class);
+        $this->lockManager->method('lock')->willReturnCallback(fn() => $this->lockFree);
+
         $builder = $this->createMock(SearchCriteriaBuilder::class);
         $builder->method('addFilter')->willReturnSelf();
         $builder->method('setPageSize')->willReturnSelf();
@@ -125,7 +135,8 @@ class WithdrawalServiceTest extends TestCase
             $commentFactory,
             $this->orderManagement,
             $builderFactory,
-            $this->createMock(LoggerInterface::class)
+            $this->createMock(LoggerInterface::class),
+            $this->lockManager
         );
     }
 
@@ -406,5 +417,43 @@ class WithdrawalServiceTest extends TestCase
         $this->assertSame(1, $lines[10]['qty_unshipped']);
         $this->assertSame(0, $lines[11]['qty_held']);
         $this->assertSame(0, $lines[11]['qty_unshipped']);
+    }
+
+    public function testSubmitRunsUnderAPerTicketLockAndReleasesIt(): void
+    {
+        $this->shippedOn('2026-03-01 10:00:00');
+        $this->lockManager->expects($this->once())->method('lock')
+            ->with('magenx_rma_withdrawal_' . sha1('TX-1'), 30);
+        $this->lockManager->expects($this->once())->method('unlock')
+            ->with('magenx_rma_withdrawal_' . sha1('TX-1'));
+
+        $this->service->submit($this->order([10 => ['shipped' => 1, 'open' => 0]]), [], 'TX-1', self::DECLARED_AT);
+    }
+
+    public function testBusyTicketIsRefusedWithoutWork(): void
+    {
+        $this->lockFree = false;
+        $this->rmaSubmitService->expects($this->never())->method('createRma');
+        $this->lockManager->expects($this->never())->method('unlock');
+        $this->expectException(LocalizedException::class);
+
+        $this->service->submit($this->order([10 => ['shipped' => 1, 'open' => 0]]), [], 'TX-1', self::DECLARED_AT);
+    }
+
+    public function testOpenVirtualLineKeepsTheOrderFromBeingCanceled(): void
+    {
+        $this->virtualIds = [99];
+        $this->shippedOn(null);
+        $this->orderManagement->expects($this->never())->method('cancel');
+
+        $result = $this->service->submit(
+            $this->order([10 => ['shipped' => 0, 'open' => 1], 99 => ['shipped' => 0, 'open' => 1]]),
+            [10 => 1],
+            'TX-1',
+            self::DECLARED_AT
+        );
+
+        $this->assertFalse($result->orderCanceled);
+        $this->assertSame([WithdrawalResult::REVIEW_UNSHIPPED], $result->reviewReasons);
     }
 }

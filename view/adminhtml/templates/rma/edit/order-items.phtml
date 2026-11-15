@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: edit mode records approved and received qty per item.
  */
 use Magenx\Rma\Block\Adminhtml\Rma\Edit\OrderItems;
 
@@ -29,6 +30,8 @@ $rmaItems = $isEdit ? $block->getRmaItems() : null;
                     <th><?= $escaper->escapeHtml(__('Product Name')) ?></th>
                     <th><?= $escaper->escapeHtml(__('SKU')) ?></th>
                     <th><?= $escaper->escapeHtml(__('Qty Requested')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Qty Approved')) ?></th>
+                    <th><?= $escaper->escapeHtml(__('Qty Received')) ?></th>
                     <th><?= $escaper->escapeHtml(__('Condition')) ?></th>
                 </tr>
             </thead>
@@ -39,6 +42,15 @@ $rmaItems = $isEdit ? $block->getRmaItems() : null;
                         <td><?= $escaper->escapeHtml($orderItemInfo['name']) ?></td>
                         <td><?= $escaper->escapeHtml($orderItemInfo['sku']) ?></td>
                         <td><?= (int)$item->getQtyRequested() ?></td>
+                        <?php foreach (['qty_approved' => $item->getQtyApproved(), 'qty_returned' => $item->getQtyReturned()] as $field => $qty): ?>
+                            <td>
+                                <input type="number" class="admin__control-text rma-item-qty-input" min="0"
+                                       max="<?= (int)$item->getQtyRequested() ?>"
+                                       data-item-id="<?= (int)$item->getEntityId() ?>"
+                                       data-field="<?= $escaper->escapeHtmlAttr($field) ?>"
+                                       value="<?= $qty === null ? '' : (int)$qty ?>"/>
+                            </td>
+                        <?php endforeach; ?>
                         <td><?= $escaper->escapeHtml($block->getConditionLabel($item->getConditionId())) ?></td>
                     </tr>
                 <?php endforeach; ?>
@@ -46,6 +58,15 @@ $rmaItems = $isEdit ? $block->getRmaItems() : null;
         </table>
     </div>
 </section>
+<script type="text/x-magento-init">
+    {
+        ".rma-items-table": {
+            "Magenx_Rma/js/rma-item-qtys": {
+                "provider": "rma_form.rma_form_data_source"
+            }
+        }
+    }
+</script>
 <?php elseif (!$isEdit): ?>
 <section class="admin__page-section" id="rma-order-items-section">
     <div class="admin__page-section-title">
@@ -69,7 +90,7 @@ $rmaItems = $isEdit ? $block->getRmaItems() : null;
     #rma-order-items-container table { width: 100%; border-collapse: collapse; }
     #rma-order-items-container table th { text-align: left; padding: 8px; font-weight: 600; border-bottom: 1px solid #ccc; }
     #rma-order-items-container table td { padding: 8px; border-bottom: 1px solid #e3e3e3; }
-    #rma-order-items-container input[type="number"] { width: 60px; }
+    #rma-order-items-container input[type="number"], .rma-item-qty-input { width: 60px; }
     #rma-order-items-container select { min-width: 120px; }
     #rma-order-items-container input[type="checkbox"] { margin-right: 5px; }
 </style>

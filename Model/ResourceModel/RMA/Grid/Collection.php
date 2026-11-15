@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: joins the order number; grid filters are mapped to rma_entity.
  */
 declare(strict_types=1);
 
@@ -29,6 +30,15 @@ class Collection extends RmaCollection implements SearchResultInterface
      * @var AggregationInterface
      */
     protected AggregationInterface $aggregations;
+
+    /**
+     * rma_entity columns a grid filter may name.
+     */
+    private const MAIN_TABLE_FIELDS = [
+        'entity_id', 'increment_id', 'order_id', 'customer_id', 'store_id', 'customer_email',
+        'customer_name', 'status_id', 'reason_id', 'resolution_type_id', 'is_withdrawal',
+        'created_at', 'updated_at',
+    ];
 
     /**
      * @param EntityFactoryInterface $entityFactory
@@ -76,7 +86,30 @@ class Collection extends RmaCollection implements SearchResultInterface
             ['resolution_label' => 'rma_resolution.label']
         );
 
+        $this->addOrderNumberAndFieldMap();
+
         return $this;
+    }
+
+    /**
+     * Joins the order number for the list (PRD FR-R9: filter by order) and maps every
+     * filterable field: the joined tables share column names with rma_entity
+     * (entity_id, store_id, increment_id, created_at, ...) and grid filters name bare
+     * fields, which would otherwise be ambiguous.
+     *
+     * @return void
+     */
+    protected function addOrderNumberAndFieldMap(): void
+    {
+        $this->joinSalesOrder();
+
+        foreach (self::MAIN_TABLE_FIELDS as $field) {
+            $this->addFilterToMap($field, 'main_table.' . $field);
+        }
+        $this->addFilterToMap(
+            self::ORDER_INCREMENT_ID_COLUMN,
+            self::SALES_ORDER_ALIAS . '.increment_id'
+        );
     }
 
     /**

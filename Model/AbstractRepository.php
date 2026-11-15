@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: a failed delete shows no database text.
  */
 declare(strict_types=1);
 
@@ -102,10 +103,7 @@ abstract class AbstractRepository
         try {
             $this->resourceModel->delete($entity);
         } catch (Exception $e) {
-            throw new CouldNotDeleteException(
-                __('Could not delete the %1: %2', $this->getEntityLabel(), $e->getMessage()),
-                $e
-            );
+            throw new CouldNotDeleteException(DeleteFailureMessage::forException($e, $this->getEntityLabel()), $e);
         }
 
         return true;

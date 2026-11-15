@@ -6,6 +6,11 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: a new RMA is created through RmaSubmitService::createRma(),
+ * so header and items share one transaction and the new-return emails are sent;
+ * the order's eligibility is re-checked on the server; reason and resolution are
+ * editable on an existing RMA, except a withdrawal one; staff record approved and
+ * received qty per item.
  */
 declare(strict_types=1);
 
@@ -13,15 +18,16 @@ namespace Magenx\Rma\Controller\Adminhtml\Rma;
 
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magenx\Rma\Api\Data\RMAInterface;
-use Magenx\Rma\Api\Data\RMAInterfaceFactory;
+use Magenx\Rma\Api\ItemRepositoryInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\Rma as BaseController;
+use Magenx\Rma\Model\RMA\StatusResolver;
+use Magenx\Rma\Service\OrderEligibility;
 use Magenx\Rma\Service\RmaSubmitService;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Request\DataPersistorInterface;
 use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultInterface;
-use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Sales\Api\OrderRepositoryInterface;
 use Exception;
@@ -31,18 +37,22 @@ class Save extends BaseController implements HttpPostActionInterface
     /**
      * @param Context $context
      * @param RMARepositoryInterface $rmaRepository
-     * @param RMAInterfaceFactory $rmaFactory
      * @param OrderRepositoryInterface $orderRepository
      * @param DataPersistorInterface $dataPersistor
      * @param RmaSubmitService $rmaSubmitService
+     * @param StatusResolver $statusResolver
+     * @param OrderEligibility $orderEligibility
+     * @param ItemRepositoryInterface $itemRepository
      */
     public function __construct(
         Context $context,
         protected readonly RMARepositoryInterface $rmaRepository,
-        protected readonly RMAInterfaceFactory $rmaFactory,
         protected readonly OrderRepositoryInterface $orderRepository,
         protected readonly DataPersistorInterface $dataPersistor,
-        protected readonly RmaSubmitService $rmaSubmitService
+        protected readonly RmaSubmitService $rmaSubmitService,
+        protected readonly StatusResolver $statusResolver,
+        protected readonly OrderEligibility $orderEligibility,
+        protected readonly ItemRepositoryInterface $itemRepository
     ) {
         parent::__construct($context);
     }
@@ -86,7 +96,67 @@ class Save extends BaseController implements HttpPostActionInterface
             $model->setStatusId((int)$data['status_id']);
         }
 
-        return $this->saveAndRedirect($resultRedirect, $model, $data, $id);
+        // Staff may change reason and resolution (PRD FR-R6); a withdrawal return keeps
+        // the ones the system set (PRD FR-W5).
+        foreach (['reason_id' => 'setReasonId', 'resolution_type_id' => 'setResolutionTypeId'] as $field => $setter) {
+            $value = (int)($data[$field] ?? 0);
+            $current = $field === 'reason_id' ? $model->getReasonId() : $model->getResolutionTypeId();
+            if (!$value || $value === $current) {
+                continue;
+            }
+            if ($model->isWithdrawal()) {
+                $this->messageManager->addErrorMessage(
+                    __('The reason and resolution of a withdrawal return are set by the system.')
+                );
+                $this->dataPersistor->set('rma_entity', $data);
+
+                return $resultRedirect->setPath('*/*/edit', ['entity_id' => $id]);
+            }
+            $model->$setter($value);
+        }
+
+        $itemQtys = (array)($data['item_qtys'] ?? []);
+
+        return $this->saveAndRedirect(
+            $resultRedirect,
+            function () use ($model, $itemQtys, $id): RMAInterface {
+                $this->saveItemQtys($id, $itemQtys);
+
+                return $this->rmaRepository->save($model);
+            },
+            $data,
+            $id
+        );
+    }
+
+    /**
+     * Records approved and received qty per item (PRD FR-R7); the repository checks
+     * approved <= requested and received <= approved before anything is written.
+     *
+     * @param int $rmaId
+     * @param array $itemQtys item id => ['qty_approved' => ?, 'qty_returned' => ?]
+     * @return void
+     * @throws LocalizedException
+     */
+    protected function saveItemQtys(int $rmaId, array $itemQtys): void
+    {
+        $items = [];
+        foreach ($itemQtys as $itemId => $qtys) {
+            $item = $this->itemRepository->get((int)$itemId);
+            if ($item->getRmaId() !== $rmaId) {
+                throw new LocalizedException(__('Item %1 does not belong to RMA %2.', $itemId, $rmaId));
+            }
+            foreach (['qty_approved' => 'setQtyApproved', 'qty_returned' => 'setQtyReturned'] as $field => $setter) {
+                if (is_array($qtys) && array_key_exists($field, $qtys)) {
+                    $item->$setter($qtys[$field] === '' || $qtys[$field] === null ? null : (int)$qtys[$field]);
+                }
+            }
+            $items[] = $item;
+        }
+
+        foreach ($items as $item) {
+            $this->itemRepository->save($item);
+        }
     }
 
     /**
@@ -134,54 +204,60 @@ class Save extends BaseController implements HttpPostActionInterface
             return $resultRedirect->setPath('*/*/new');
         }
 
-        $model = $this->buildNewRma($data, $order);
+        // Same eligibility checks as a storefront return (PRD F2 step 3).
+        $verdict = $this->orderEligibility->explain($order);
 
-        return $this->saveAndRedirect($resultRedirect, $model, $data, 0, $selectedItems, $order);
-    }
+        if ($verdict !== OrderEligibility::RESULT_OK) {
+            $this->messageManager->addErrorMessage($this->orderEligibility->describe($verdict));
+            $this->dataPersistor->set('rma_entity', $data);
 
-    /**
-     * @param array $data
-     * @param OrderInterface $order
-     * @return RMAInterface
-     */
-    protected function buildNewRma(array $data, OrderInterface $order): RMAInterface
-    {
-        $model = $this->rmaFactory->create();
-        $model->setOrderId((int)$order->getEntityId());
-        $model->setCustomerId($order->getCustomerId() ? (int)$order->getCustomerId() : null);
-        $model->setStoreId((int)$order->getStoreId());
-        $model->setCustomerEmail((string)$order->getCustomerEmail());
-        $model->setCustomerName((string)($order->getCustomerName() ?: __('Guest')));
-        $model->setStatusId((int)($data['status_id'] ?? 0));
-        $model->setReasonId((int)($data['reason_id'] ?? 0));
-        $model->setResolutionTypeId((int)($data['resolution_type_id'] ?? 0));
+            return $resultRedirect->setPath('*/*/new');
+        }
 
-        return $model;
+        $statusCode = $this->statusResolver->getCodeById($statusId);
+
+        if ($statusCode === null) {
+            $this->messageManager->addErrorMessage(__('Invalid request.'));
+            $this->dataPersistor->set('rma_entity', $data);
+
+            return $resultRedirect->setPath('*/*/new');
+        }
+
+        // One transaction for header and items, and the same lock, checks and
+        // new-return emails as a storefront return (PRD F2, FR-S6, NFR-I1).
+        return $this->saveAndRedirect(
+            $resultRedirect,
+            fn(): RMAInterface => $this->rmaSubmitService->createRma(
+                $order,
+                $order->getCustomerId() ? (int)$order->getCustomerId() : null,
+                (string)$order->getCustomerEmail(),
+                (string)($order->getCustomerName() ?: __('Guest')),
+                $reasonId,
+                $resolutionTypeId,
+                $selectedItems,
+                '',
+                $statusCode
+            ),
+            $data,
+            0
+        );
     }
 
     /**
      * @param Redirect $resultRedirect
-     * @param RMAInterface $model
+     * @param callable(): RMAInterface $save Persists the RMA and returns it
      * @param array $data
      * @param int $id
-     * @param array $selectedItems
-     * @param OrderInterface|null $order
      * @return ResultInterface
      */
     protected function saveAndRedirect(
         Redirect $resultRedirect,
-        RMAInterface $model,
+        callable $save,
         array $data,
-        int $id,
-        array $selectedItems = [],
-        ?OrderInterface $order = null
+        int $id
     ): ResultInterface {
         try {
-            $this->rmaRepository->save($model);
-
-            if (!empty($selectedItems) && $order !== null) {
-                $this->rmaSubmitService->saveItems((int)$model->getEntityId(), $selectedItems, $order);
-            }
+            $model = $save();
 
             $this->messageManager->addSuccessMessage(__('You saved the RMA request.'));
             $this->dataPersistor->clear('rma_entity');

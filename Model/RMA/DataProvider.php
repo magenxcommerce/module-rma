@@ -82,10 +82,9 @@ class DataProvider extends AbstractDataProvider
         $isEdit = (bool)$this->request->getParam('entity_id');
 
         if ($isEdit) {
-            // Edit mode: hide the creation fieldset, disable reason + resolution selects
+            // Edit mode: hide the creation fieldset. Status, reason and resolution stay
+            // editable (PRD FR-R6); Save refuses a reason/resolution change on a withdrawal.
             $meta['general']['arguments']['data']['config']['visible'] = false;
-            $meta['processing']['children']['reason_id']['arguments']['data']['config']['disabled'] = true;
-            $meta['processing']['children']['resolution_type_id']['arguments']['data']['config']['disabled'] = true;
         }
 
         return $meta;

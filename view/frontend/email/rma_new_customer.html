@@ -2,6 +2,7 @@
 <!--@vars {
 "var customer_name":"Customer Name",
 "var rma.increment_id":"RMA Increment ID",
+"var rma_increment_id_html":"RMA Increment ID (escaped)",
 "var order.increment_id":"Order Increment ID",
 "var rma_reason_label":"RMA Reason",
 "var rma_resolution_label":"RMA Resolution Type",
@@ -33,7 +34,7 @@
         <td>
             <p class="greeting">{{trans "%name," name=$customer_name}}</p>
             <p>
-                {{trans "We have received your return request <strong>#%increment_id</strong> for order <strong>#%order_increment_id</strong>." increment_id=$rma.increment_id order_increment_id=$order.increment_id |raw}}
+                {{trans "We have received your return request <strong>#%increment_id</strong> for order <strong>#%order_increment_id</strong>." increment_id=$rma_increment_id_html order_increment_id=$order.increment_id |raw}}
             </p>
             <p>
                 {{trans "We will review your request and get back to you as soon as possible."}}

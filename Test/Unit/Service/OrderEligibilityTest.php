@@ -568,4 +568,20 @@ class OrderEligibilityTest extends TestCase
 
         $this->assertSame([], $this->createService()->getAlreadyRequestedQty(100));
     }
+
+    public function testEveryRefusalHasItsOwnMessage(): void
+    {
+        $results = [
+            OrderEligibility::RESULT_DISABLED,
+            OrderEligibility::RESULT_ORDER_STATUS,
+            OrderEligibility::RESULT_RETURN_PERIOD,
+            OrderEligibility::RESULT_NOT_SHIPPED,
+            OrderEligibility::RESULT_NO_ITEMS,
+        ];
+        $service = (new \ReflectionClass(OrderEligibility::class))->newInstanceWithoutConstructor();
+        $messages = array_map(fn(string $r) => $service->describe($r)->getText(), $results);
+
+        $this->assertCount(5, array_unique($messages));
+        $this->assertNotContains('This order is not eligible for a return.', $messages);
+    }
 }

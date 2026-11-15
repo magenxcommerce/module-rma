@@ -6,6 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: treats refunded as closed; expires only returns that wait on
+ * the customer and never withdrawal returns; walks matches in batches of 500.
  */
 declare(strict_types=1);
 
@@ -18,6 +20,7 @@ use Magenx\Rma\Model\RMA\StatusResolver;
 use Magento\Framework\Api\FilterBuilder;
 use Magento\Framework\Api\Search\FilterGroupBuilder;
 use Magento\Framework\Api\SearchCriteriaBuilder;
+use Magento\Framework\Api\SortOrder;
 use Magento\Framework\Console\Cli;
 use Magento\Framework\Exception\LocalizedException;
 use Symfony\Component\Console\Command\Command;
@@ -29,10 +32,18 @@ class CleanupCommand extends Command
 {
     const OPTION_DAYS = 'days';
     const OPTION_DRY_RUN = 'dry-run';
-    const CLOSED_STATUSES = [
-        StatusCodes::RESOLVED,
-        StatusCodes::REJECTED,
-        StatusCodes::CANCELED_BY_CUSTOMER,
+    const BATCH_SIZE = 500;
+    const CLOSED_STATUSES = StatusCodes::FINAL_CODES;
+
+    /**
+     * Statuses where the next step is the customer's. Only these can expire:
+     * a return waiting on staff (new request, shipped, received) is never
+     * canceled on the customer's behalf, because that would free its units
+     * for a new return while the merchant may hold the goods.
+     */
+    const EXPIRABLE_STATUSES = [
+        StatusCodes::NEED_DETAILS,
+        StatusCodes::APPROVED,
     ];
 
     /**
@@ -58,7 +69,7 @@ class CleanupCommand extends Command
     protected function configure(): void
     {
         $this->setName('rma:cleanup')
-            ->setDescription('Cancel RMA requests that have been inactive for a given number of days')
+            ->setDescription('Cancel inactive RMA requests that wait on the customer (need details, approved; never withdrawals)')
             ->addOption(
                 self::OPTION_DAYS,
                 null,
@@ -97,10 +108,10 @@ class CleanupCommand extends Command
             return Cli::RETURN_FAILURE;
         }
 
-        $closedStatusIds = $this->statusResolver->getIdsByCodes(self::CLOSED_STATUSES);
+        $expirableStatusIds = $this->statusResolver->getIdsByCodes(self::EXPIRABLE_STATUSES);
 
-        if (empty($closedStatusIds)) {
-            $output->writeln('<error>Could not resolve closed status IDs.</error>');
+        if (empty($expirableStatusIds)) {
+            $output->writeln('<error>Could not resolve expirable status IDs.</error>');
             return Cli::RETURN_FAILURE;
         }
 
@@ -113,52 +124,81 @@ class CleanupCommand extends Command
             ->setValue($cutoffDate)
             ->create();
 
-        // Filter: status_id NOT IN closed statuses
+        // Filter: only returns waiting on the customer
         $statusFilter = $this->filterBuilder
             ->setField(RMAInterface::STATUS_ID)
-            ->setConditionType('nin')
-            ->setValue($closedStatusIds)
+            ->setConditionType('in')
+            ->setValue($expirableStatusIds)
             ->create();
 
-        $dateFilterGroup = $this->filterGroupBuilder->setFilters([$dateFilter])->create();
-        $statusFilterGroup = $this->filterGroupBuilder->setFilters([$statusFilter])->create();
-
-        $searchCriteria = $this->searchCriteriaBuilder->create();
-        $searchCriteria->setFilterGroups([$dateFilterGroup, $statusFilterGroup]);
-
-        $results = $this->rmaRepository->getList($searchCriteria);
-
-        if ($results->getTotalCount() === 0) {
-            $output->writeln('<info>No RMA to clean up.</info>');
-            return Cli::RETURN_SUCCESS;
-        }
+        // Filter: never a withdrawal return; it carries a legal right, staff close it
+        $withdrawalFilter = $this->filterBuilder
+            ->setField(RMAInterface::IS_WITHDRAWAL)
+            ->setConditionType('eq')
+            ->setValue(0)
+            ->create();
 
         $prefix = $dryRun ? '[DRY-RUN] ' : '';
         $count = 0;
+        $seen = 0;
+        $lastId = 0;
 
-        foreach ($results->getItems() as $rma) {
-            $output->writeln(sprintf(
-                '%s<comment>Canceling RMA %s (last updated: %s)</comment>',
-                $prefix,
-                $rma->getIncrementId(),
-                $rma->getUpdatedAt()
-            ));
+        // Walk the matches in id order, one batch at a time, so a large backlog is never
+        // loaded at once. The id cursor (not a page number) stays correct while canceled
+        // rows drop out of the status filter and failed ones stay in it.
+        do {
+            $cursorFilter = $this->filterBuilder
+                ->setField(RMAInterface::ENTITY_ID)
+                ->setConditionType('gt')
+                ->setValue($lastId)
+                ->create();
 
-            if (!$dryRun) {
-                try {
-                    $rma->setStatusId($canceledStatusId);
-                    $this->rmaRepository->save($rma);
-                } catch (LocalizedException $e) {
-                    $output->writeln(sprintf(
-                        '<error>Failed to cancel RMA %s: %s</error>',
-                        $rma->getIncrementId(),
-                        $e->getMessage()
-                    ));
-                    continue;
+            $searchCriteria = $this->searchCriteriaBuilder->create();
+            $searchCriteria->setFilterGroups([
+                $this->filterGroupBuilder->setFilters([$dateFilter])->create(),
+                $this->filterGroupBuilder->setFilters([$statusFilter])->create(),
+                $this->filterGroupBuilder->setFilters([$withdrawalFilter])->create(),
+                $this->filterGroupBuilder->setFilters([$cursorFilter])->create(),
+            ]);
+            $searchCriteria->setSortOrders([
+                new SortOrder([SortOrder::FIELD => RMAInterface::ENTITY_ID, SortOrder::DIRECTION => SortOrder::SORT_ASC]),
+            ]);
+            $searchCriteria->setPageSize(self::BATCH_SIZE);
+            $searchCriteria->setCurrentPage(1);
+
+            $batch = $this->rmaRepository->getList($searchCriteria)->getItems();
+
+            foreach ($batch as $rma) {
+                $seen++;
+                $lastId = max($lastId, (int)$rma->getEntityId());
+                $output->writeln(sprintf(
+                    '%s<comment>Canceling RMA %s (last updated: %s)</comment>',
+                    $prefix,
+                    $rma->getIncrementId(),
+                    $rma->getUpdatedAt()
+                ));
+
+                if (!$dryRun) {
+                    try {
+                        $rma->setStatusId($canceledStatusId);
+                        $this->rmaRepository->save($rma);
+                    } catch (LocalizedException $e) {
+                        $output->writeln(sprintf(
+                            '<error>Failed to cancel RMA %s: %s</error>',
+                            $rma->getIncrementId(),
+                            $e->getMessage()
+                        ));
+                        continue;
+                    }
                 }
-            }
 
-            $count++;
+                $count++;
+            }
+        } while (count($batch) === self::BATCH_SIZE);
+
+        if ($seen === 0) {
+            $output->writeln('<info>No RMA to clean up.</info>');
+            return Cli::RETURN_SUCCESS;
         }
 
         $output->writeln(sprintf(

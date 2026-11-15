@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: a failed delete shows no database text.
  */
 declare(strict_types=1);
 
@@ -19,6 +20,7 @@ use Magento\Framework\Controller\Result\Redirect;
 use Magento\Framework\Controller\ResultInterface;
 use Magento\Ui\Component\MassAction\Filter;
 use Magento\Framework\Exception\LocalizedException;
+use Magenx\Rma\Model\DeleteFailureMessage;
 use Exception;
 
 abstract class AbstractLookupMassDelete extends Action implements HttpPostActionInterface
@@ -76,7 +78,8 @@ abstract class AbstractLookupMassDelete extends Action implements HttpPostAction
                 $entity->delete();
                 $deleted++;
             } catch (Exception $e) {
-                $this->messageManager->addErrorMessage($e->getMessage());
+                $label = $this->entityName !== '' ? $this->entityName : (string)__('entry');
+                $this->messageManager->addErrorMessage(DeleteFailureMessage::forException($e, $label));
             }
         }
 

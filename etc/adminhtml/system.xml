@@ -6,7 +6,8 @@
 
     Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
     identifiers renamed, GraphQL surface split into a sibling module.
-    Modified by MagenX: added the Right of Withdrawal group.
+    Modified by MagenX: added the Right of Withdrawal group; the return period hint
+    says "after the order was placed", as the code counts.
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
     <system>
@@ -28,7 +29,7 @@
                 <field id="return_period" translate="label comment" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Return Period (Days)</label>
                     <validate>validate-digits</validate>
-                    <comment>Number of days after order completion within which a return can be requested.</comment>
+                    <comment>Number of days after the order was placed within which a return can be requested. 0 = no limit.</comment>
                 </field>
             </group>
             <group id="policy" translate="label" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="0">

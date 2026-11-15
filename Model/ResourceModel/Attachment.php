@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: dropped the unused resource-model event prefix.
  */
 declare(strict_types=1);
 
@@ -15,11 +16,6 @@ use Magento\Framework\Model\ResourceModel\Db\AbstractDb;
 
 class Attachment extends AbstractDb
 {
-    /**
-     * @var string
-     */
-    protected string $_eventPrefix = 'rma_attachment_resource_model';
-
     /**
      * @return void
      */

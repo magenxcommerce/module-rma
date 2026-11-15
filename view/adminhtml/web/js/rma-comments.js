@@ -5,6 +5,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: the comment wrapper class comes from a fixed list, not author_type.
  */
 define([
     'jquery',
@@ -119,7 +120,9 @@ define([
                     : 'background: #fff; margin-right: 20px; border: 1px solid #ddd;';
             }
 
-            html = '<div class="rma-comment ' + comment.author_type + '" data-comment-id="' + comment.entity_id + '" ' +
+            // author_type can arrive from an integration: never put it into markup as is.
+            html = '<div class="rma-comment ' + (isAdminComment ? 'admin' : 'customer') + '" ' +
+                'data-comment-id="' + parseInt(comment.entity_id, 10) + '" ' +
                 'style="margin-bottom: 10px; padding: 8px 12px; border-radius: 6px; ' + style + '">' +
                 '<div style="font-size: 11px; color: #666; margin-bottom: 4px;">' +
                 '<strong>' + $('<span>').text(comment.author_name).html() + '</strong>';

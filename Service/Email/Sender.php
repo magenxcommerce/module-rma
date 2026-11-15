@@ -6,11 +6,13 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: values used in |raw template strings are escaped.
  */
 declare(strict_types=1);
 
 namespace Magenx\Rma\Service\Email;
 
+use Magento\Framework\Escaper;
 use Magenx\Rma\Api\Data\RMAInterface;
 use Magenx\Rma\Api\Email\SenderInterface;
 use Magenx\Rma\Api\ItemConditionRepositoryInterface;
@@ -48,6 +50,7 @@ class Sender implements SenderInterface
      * @param ItemConditionRepositoryInterface $itemConditionRepository
      * @param StatusRepositoryInterface $statusRepository
      * @param Emulation $appEmulation
+     * @param Escaper $escaper
      */
     public function __construct(
         protected readonly TransportBuilder $transportBuilder,
@@ -63,7 +66,8 @@ class Sender implements SenderInterface
         protected readonly ImageHelper $imageHelper,
         protected readonly ItemConditionRepositoryInterface $itemConditionRepository,
         protected readonly StatusRepositoryInterface $statusRepository,
-        protected readonly Emulation $appEmulation
+        protected readonly Emulation $appEmulation,
+        protected readonly Escaper $escaper
     ) {
     }
 
@@ -104,7 +108,8 @@ class Sender implements SenderInterface
         $templateId = $this->moduleConfig->getCustomerStatusChangeTemplate($storeId);
 
         $this->sendRmaEmail($rma, $templateId, $rma->getCustomerEmail(), $rma->getCustomerName(), fn(): array => [
-            'rma_status_label' => $this->getStatusLabel($newStatusId, $storeId),
+            // Goes into a {{trans ... |raw}} string: escape it, it is admin-editable text.
+            'rma_status_label' => $this->escaper->escapeHtml($this->getStatusLabel($newStatusId, $storeId)),
         ]);
     }
 
@@ -192,6 +197,9 @@ class Sender implements SenderInterface
         return [
             'customer_name' => $rma->getCustomerName(),
             'rma' => $rma,
+            // The reference carries the admin-configured prefix and is used inside
+            // {{trans ... |raw}} strings, which do not escape their parameters.
+            'rma_increment_id_html' => $this->escaper->escapeHtml((string)$rma->getIncrementId()),
             'order' => $this->orderRepository->get($rma->getOrderId()),
             'store' => $this->storeManager->getStore($storeId),
         ];
