@@ -5,7 +5,7 @@
 "Increment ID Prefix","Inkrement-ID-Präfix"
 "Prefix for the RMA increment ID (e.g. RMA-).","Präfix für die RMA Inkrement-ID (z.B. RMA-)."
 "Return Period (Days)","Rückgabefrist (Tage)"
-"Number of days after order completion within which a return can be requested.","Anzahl der Tage nach Bestellabschluss, innerhalb derer eine Rücksendung beantragt werden kann."
+"Number of days after the order was placed within which a return can be requested. 0 = no limit.","Anzahl der Tage nach der Bestellung, innerhalb derer eine Rücksendung beantragt werden kann. 0 = keine Begrenzung."
 "Policy","Richtlinie"
 "Auto-Approve Returns","Retouren Automatisch Genehmigen"
 "If enabled, new RMA requests will be automatically approved.","Wenn aktiviert, werden neue RMA-Anfragen automatisch genehmigt."
