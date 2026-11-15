@@ -19,6 +19,7 @@ use Magenx\Rma\Model\RMA\StatusCodes;
 use Magenx\Rma\Model\RMA\WithdrawalCodes;
 use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Lock\LockManagerInterface;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\OrderManagementInterface;
 use Psr\Log\LoggerInterface;
@@ -42,6 +43,9 @@ use Throwable;
  */
 class WithdrawalService
 {
+    private const LOCK_PREFIX = 'magenx_rma_withdrawal_';
+    private const LOCK_TIMEOUT = 30;
+
     /**
      * @param ModuleConfig $moduleConfig
      * @param OrderEligibility $orderEligibility
@@ -55,6 +59,7 @@ class WithdrawalService
      * @param OrderManagementInterface $orderManagement
      * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
      * @param LoggerInterface $logger
+     * @param LockManagerInterface $lockManager
      */
     public function __construct(
         protected readonly ModuleConfig $moduleConfig,
@@ -68,7 +73,8 @@ class WithdrawalService
         protected readonly CommentInterfaceFactory $commentFactory,
         protected readonly OrderManagementInterface $orderManagement,
         protected readonly SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
-        protected readonly LoggerInterface $logger
+        protected readonly LoggerInterface $logger,
+        protected readonly LockManagerInterface $lockManager
     ) {
     }
 
@@ -87,6 +93,33 @@ class WithdrawalService
             throw new LocalizedException(__('A withdrawal needs the helpdesk ticket that records it.'));
         }
 
+        // The duplicate check below is a read; serialize per ticket so two parallel
+        // calls cannot both miss it and open two withdrawal returns (PRD BR-5, NFR-I2).
+        $lockName = self::LOCK_PREFIX . sha1($ticketCode);
+        if (!$this->lockManager->lock($lockName, self::LOCK_TIMEOUT)) {
+            throw new LocalizedException(__('This withdrawal is already being processed. Try again in a moment.'));
+        }
+
+        try {
+            return $this->submitLocked($order, $items, $ticketCode, $declaredAt);
+        } finally {
+            $this->lockManager->unlock($lockName);
+        }
+    }
+
+    /**
+     * @param OrderInterface $order
+     * @param array<int, int> $items
+     * @param string $ticketCode
+     * @param string $declaredAt
+     * @return WithdrawalResult
+     */
+    protected function submitLocked(
+        OrderInterface $order,
+        array $items,
+        string $ticketCode,
+        string $declaredAt
+    ): WithdrawalResult {
         $existing = $this->findByTicket($ticketCode);
         if ($existing !== null) {
             return new WithdrawalResult($existing, false, false, [], [], [], true);
