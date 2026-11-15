@@ -6,7 +6,8 @@
 
     Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
     identifiers renamed, GraphQL surface split into a sibling module.
-    Modified by MagenX: added the Withdrawal column.
+    Modified by MagenX: added the Withdrawal column; order number and store view columns
+    and a store view filter.
 -->
 <listing xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Ui:etc/ui_configuration.xsd">
     <argument name="data" xsi:type="array">
@@ -48,7 +49,19 @@
         </settings>
         <bookmark name="bookmarks"/>
         <columnsControls name="columns_controls"/>
-        <filters name="listing_filters"/>
+        <filters name="listing_filters">
+            <filterSelect name="store_id" provider="${ $.parentName }">
+                <settings>
+                    <options class="Magento\Store\Ui\Component\Listing\Column\Store\Options"/>
+                    <caption translate="true">All Store Views</caption>
+                    <label translate="true">Store View</label>
+                    <dataScope>store_id</dataScope>
+                    <imports>
+                        <link name="visible">ns = ${ $.ns }, index = ${ $.index }:visible</link>
+                    </imports>
+                </settings>
+            </filterSelect>
+        </filters>
         <massaction name="listing_massaction">
             <action name="delete">
                 <settings>
@@ -99,6 +112,19 @@
             <settings>
                 <filter>textRange</filter>
                 <label translate="true">Order ID</label>
+            </settings>
+        </column>
+        <column name="order_increment_id">
+            <settings>
+                <filter>text</filter>
+                <label translate="true">Order #</label>
+            </settings>
+        </column>
+        <column name="store_id" class="Magento\Store\Ui\Component\Listing\Column\Store">
+            <settings>
+                <label translate="true">Store View</label>
+                <bodyTmpl>ui/grid/cells/html</bodyTmpl>
+                <sortable>false</sortable>
             </settings>
         </column>
         <column name="status_id" component="Magento_Ui/js/grid/columns/select">
