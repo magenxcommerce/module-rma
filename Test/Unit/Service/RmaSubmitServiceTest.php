@@ -326,6 +326,47 @@ class RmaSubmitServiceTest extends TestCase
         $this->assertSame(['prepare', 'save', 'rma_commit_after'], $calls);
     }
 
+    public function testCreateRmaLocksTheOrderBeforeSaving(): void
+    {
+        $order = $this->createMock(OrderInterface::class);
+        $order->method('getStoreId')->willReturn(1);
+        $order->method('getEntityId')->willReturn(100);
+
+        $this->statusResolver->method('getIdByCode')->willReturn(1);
+        $rma = $this->createMock(RMAInterface::class);
+        $rma->method('getEntityId')->willReturn(10);
+        $this->rmaFactory->method('create')->willReturn($rma);
+        $this->orderEligibility->method('getEligibleItems')->willReturn([]);
+
+        $calls = [];
+        $this->connection->method('beginTransaction')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'begin';
+            return $this->connection;
+        });
+        $this->connection->expects($this->once())->method('fetchOne')
+            ->with($this->stringContains('FOR UPDATE'), [100])
+            ->willReturnCallback(function () use (&$calls) {
+                $calls[] = 'lock';
+                return '100';
+            });
+        $this->rmaRepository->method('save')->willReturnCallback(function () use (&$calls, $rma) {
+            $calls[] = 'save';
+            return $rma;
+        });
+
+        $this->service->createRma(
+            order: $order,
+            customerId: 1,
+            customerEmail: 'test@example.com',
+            customerName: 'Test User',
+            reasonId: 1,
+            resolutionTypeId: 1,
+            selectedItems: []
+        );
+
+        $this->assertSame(['begin', 'lock', 'save'], $calls);
+    }
+
     public function testCreateRmaRollsBackTransactionOnException(): void
     {
         $order = $this->createMock(OrderInterface::class);

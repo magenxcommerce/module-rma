@@ -7,7 +7,8 @@
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
  * Modified by MagenX: createRma() takes an initial status and a callback that
- * fills extra RMA fields before the save.
+ * fills extra RMA fields before the save; locks the order row so parallel returns
+ * cannot together exceed the returnable qty.
  */
 declare(strict_types=1);
 
@@ -144,6 +145,7 @@ class RmaSubmitService
         $connection->beginTransaction();
 
         try {
+            $this->lockOrder((int)$order->getEntityId());
             $this->rmaRepository->save($rma);
             $rmaId = (int)$rma->getEntityId();
             $this->saveItems($rmaId, $selectedItems, $order);
@@ -156,6 +158,28 @@ class RmaSubmitService
         }
 
         return $rma;
+    }
+
+    /**
+     * Serializes return creation per order.
+     *
+     * The returnable-qty check in saveItems() is a plain read. Without a lock, two
+     * parallel requests for the same order both pass it and together hold more units
+     * than the customer has. Locking the order row first makes the second request wait;
+     * its first consistent read then comes after the lock and sees the committed rows.
+     * Must run as the first statement of the transaction.
+     *
+     * @param int $orderId
+     * @return void
+     */
+    protected function lockOrder(int $orderId): void
+    {
+        $connection = $this->resourceConnection->getConnection();
+        $connection->fetchOne(
+            'SELECT entity_id FROM ' . $connection->quoteIdentifier($this->resourceConnection->getTableName('sales_order'))
+            . ' WHERE entity_id = ? FOR UPDATE',
+            [$orderId]
+        );
     }
 
     /**
