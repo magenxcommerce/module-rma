@@ -24,11 +24,6 @@ class Status extends AbstractDb
     /**
      * @var string
      */
-    protected string $_eventPrefix = 'rma_status_resource_model';
-
-    /**
-     * @var string
-     */
     protected string $labelsTable = '';
 
     /**

@@ -23,11 +23,6 @@ class ItemCondition extends AbstractDb
     /**
      * @var string
      */
-    protected string $_eventPrefix = 'rma_item_condition_resource_model';
-
-    /**
-     * @var string
-     */
     protected string $labelsTable = '';
 
     /**

@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: dropped the unused resource-model event prefix.
  */
 declare(strict_types=1);
 
@@ -19,11 +20,6 @@ use Magento\Framework\Exception\LocalizedException;
 
 class RMA extends AbstractDb
 {
-    /**
-     * @var string
-     */
-    protected string $_eventPrefix = 'rma_entity_resource_model';
-
     /**
      * @param Context $context
      * @param ModuleConfig $moduleConfig

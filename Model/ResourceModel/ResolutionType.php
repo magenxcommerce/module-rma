@@ -24,11 +24,6 @@ class ResolutionType extends AbstractDb
     /**
      * @var string
      */
-    protected string $_eventPrefix = 'rma_resolution_type_resource_model';
-
-    /**
-     * @var string
-     */
     protected string $labelsTable = '';
 
     /**

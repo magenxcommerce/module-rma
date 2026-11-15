@@ -24,11 +24,6 @@ class Reason extends AbstractDb
     /**
      * @var string
      */
-    protected string $_eventPrefix = 'rma_reason_resource_model';
-
-    /**
-     * @var string
-     */
     protected string $labelsTable = '';
 
     /**
