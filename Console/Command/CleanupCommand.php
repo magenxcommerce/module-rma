@@ -7,7 +7,7 @@
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
  * Modified by MagenX: treats refunded as closed; expires only returns that wait on
- * the customer and never withdrawal returns.
+ * the customer and never withdrawal returns; walks matches in batches of 500.
  */
 declare(strict_types=1);
 
@@ -20,6 +20,7 @@ use Magenx\Rma\Model\RMA\StatusResolver;
 use Magento\Framework\Api\FilterBuilder;
 use Magento\Framework\Api\Search\FilterGroupBuilder;
 use Magento\Framework\Api\SearchCriteriaBuilder;
+use Magento\Framework\Api\SortOrder;
 use Magento\Framework\Console\Cli;
 use Magento\Framework\Exception\LocalizedException;
 use Symfony\Component\Console\Command\Command;
@@ -31,6 +32,7 @@ class CleanupCommand extends Command
 {
     const OPTION_DAYS = 'days';
     const OPTION_DRY_RUN = 'dry-run';
+    const BATCH_SIZE = 500;
     const CLOSED_STATUSES = StatusCodes::FINAL_CODES;
 
     /**
@@ -136,46 +138,67 @@ class CleanupCommand extends Command
             ->setValue(0)
             ->create();
 
-        $searchCriteria = $this->searchCriteriaBuilder->create();
-        $searchCriteria->setFilterGroups([
-            $this->filterGroupBuilder->setFilters([$dateFilter])->create(),
-            $this->filterGroupBuilder->setFilters([$statusFilter])->create(),
-            $this->filterGroupBuilder->setFilters([$withdrawalFilter])->create(),
-        ]);
-
-        $results = $this->rmaRepository->getList($searchCriteria);
-
-        if ($results->getTotalCount() === 0) {
-            $output->writeln('<info>No RMA to clean up.</info>');
-            return Cli::RETURN_SUCCESS;
-        }
-
         $prefix = $dryRun ? '[DRY-RUN] ' : '';
         $count = 0;
+        $seen = 0;
+        $lastId = 0;
 
-        foreach ($results->getItems() as $rma) {
-            $output->writeln(sprintf(
-                '%s<comment>Canceling RMA %s (last updated: %s)</comment>',
-                $prefix,
-                $rma->getIncrementId(),
-                $rma->getUpdatedAt()
-            ));
+        // Walk the matches in id order, one batch at a time, so a large backlog is never
+        // loaded at once. The id cursor (not a page number) stays correct while canceled
+        // rows drop out of the status filter and failed ones stay in it.
+        do {
+            $cursorFilter = $this->filterBuilder
+                ->setField(RMAInterface::ENTITY_ID)
+                ->setConditionType('gt')
+                ->setValue($lastId)
+                ->create();
 
-            if (!$dryRun) {
-                try {
-                    $rma->setStatusId($canceledStatusId);
-                    $this->rmaRepository->save($rma);
-                } catch (LocalizedException $e) {
-                    $output->writeln(sprintf(
-                        '<error>Failed to cancel RMA %s: %s</error>',
-                        $rma->getIncrementId(),
-                        $e->getMessage()
-                    ));
-                    continue;
+            $searchCriteria = $this->searchCriteriaBuilder->create();
+            $searchCriteria->setFilterGroups([
+                $this->filterGroupBuilder->setFilters([$dateFilter])->create(),
+                $this->filterGroupBuilder->setFilters([$statusFilter])->create(),
+                $this->filterGroupBuilder->setFilters([$withdrawalFilter])->create(),
+                $this->filterGroupBuilder->setFilters([$cursorFilter])->create(),
+            ]);
+            $searchCriteria->setSortOrders([
+                new SortOrder([SortOrder::FIELD => RMAInterface::ENTITY_ID, SortOrder::DIRECTION => SortOrder::SORT_ASC]),
+            ]);
+            $searchCriteria->setPageSize(self::BATCH_SIZE);
+            $searchCriteria->setCurrentPage(1);
+
+            $batch = $this->rmaRepository->getList($searchCriteria)->getItems();
+
+            foreach ($batch as $rma) {
+                $seen++;
+                $lastId = max($lastId, (int)$rma->getEntityId());
+                $output->writeln(sprintf(
+                    '%s<comment>Canceling RMA %s (last updated: %s)</comment>',
+                    $prefix,
+                    $rma->getIncrementId(),
+                    $rma->getUpdatedAt()
+                ));
+
+                if (!$dryRun) {
+                    try {
+                        $rma->setStatusId($canceledStatusId);
+                        $this->rmaRepository->save($rma);
+                    } catch (LocalizedException $e) {
+                        $output->writeln(sprintf(
+                            '<error>Failed to cancel RMA %s: %s</error>',
+                            $rma->getIncrementId(),
+                            $e->getMessage()
+                        ));
+                        continue;
+                    }
                 }
-            }
 
-            $count++;
+                $count++;
+            }
+        } while (count($batch) === self::BATCH_SIZE);
+
+        if ($seen === 0) {
+            $output->writeln('<info>No RMA to clean up.</info>');
+            return Cli::RETURN_SUCCESS;
         }
 
         $output->writeln(sprintf(

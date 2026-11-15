@@ -62,7 +62,8 @@ class CleanupCommandTest extends TestCase
 
         $criteria = $this->createMock(SearchCriteria::class);
         $criteria->expects($this->once())->method('setFilterGroups')
-            ->with($this->countOf(3));
+            ->with($this->countOf(4));
+        $criteria->expects($this->once())->method('setPageSize')->with(CleanupCommand::BATCH_SIZE);
         $criteriaBuilder = $this->createMock(SearchCriteriaBuilder::class);
         $criteriaBuilder->method('create')->willReturn($criteria);
 
@@ -79,5 +80,6 @@ class CleanupCommandTest extends TestCase
         $this->assertSame('lteq', $filters[0]['type']);
         $this->assertSame(['field' => 'status_id', 'type' => 'in', 'value' => [2, 3]], $filters[1]);
         $this->assertSame(['field' => 'is_withdrawal', 'type' => 'eq', 'value' => 0], $filters[2]);
+        $this->assertSame(['field' => 'entity_id', 'type' => 'gt', 'value' => 0], $filters[3]);
     }
 }
