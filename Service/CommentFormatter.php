@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: a list loads the attachments of all its comments in one query.
  */
 declare(strict_types=1);
 
@@ -52,19 +53,33 @@ class CommentFormatter
 
         $collection->setOrder('created_at', 'ASC');
 
+        $comments = $collection->getItems();
+        // One attachment query for the whole list instead of one per comment.
+        $attachmentsByComment = $this->loadAttachmentsByComment(
+            array_map(static fn($comment): int => (int)$comment->getEntityId(), $comments)
+        );
+
         return array_values(array_map(
-            fn($comment) => $this->toArray($comment, $includeVisibility),
-            $collection->getItems()
+            fn($comment) => $this->toArray(
+                $comment,
+                $includeVisibility,
+                $attachmentsByComment[(int)$comment->getEntityId()] ?? []
+            ),
+            $comments
         ));
     }
 
     /**
      * @param CommentInterface $comment
      * @param bool $includeVisibility
+     * @param array|null $attachments Preloaded attachment rows; null loads them here
      * @return array
      */
-    public function toArray(CommentInterface $comment, bool $includeVisibility = false): array
-    {
+    public function toArray(
+        CommentInterface $comment,
+        bool $includeVisibility = false,
+        ?array $attachments = null
+    ): array {
         $data = [
             'entity_id' => $comment->getEntityId(),
             'author_type' => $comment->getAuthorType(),
@@ -79,10 +94,29 @@ class CommentFormatter
 
         $commentId = (int)$comment->getEntityId();
         if ($commentId) {
-            $data['attachments'] = $this->formatAttachments($commentId);
+            $data['attachments'] = $attachments ?? $this->formatAttachments($commentId);
         }
 
         return $data;
+    }
+
+    /**
+     * @param int[] $commentIds
+     * @return array<int, array> comment id => formatted attachments
+     */
+    protected function loadAttachmentsByComment(array $commentIds): array
+    {
+        $commentIds = array_values(array_filter($commentIds));
+        if (empty($commentIds)) {
+            return [];
+        }
+
+        $grouped = [];
+        foreach ($this->attachmentService->getByCommentIds($commentIds) as $attachment) {
+            $grouped[(int)$attachment->getCommentId()][] = $this->attachmentService->toArray($attachment);
+        }
+
+        return $grouped;
     }
 
     /**

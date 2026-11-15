@@ -253,6 +253,19 @@ class AttachmentService
     }
 
     /**
+     * @param int[] $commentIds
+     * @return AttachmentInterface[]
+     */
+    public function getByCommentIds(array $commentIds): array
+    {
+        $collection = $this->attachmentCollectionFactory->create();
+        $collection->addFieldToFilter(AttachmentInterface::COMMENT_ID, ['in' => $commentIds]);
+        $collection->setOrder(AttachmentInterface::CREATED_AT, 'ASC');
+
+        return $collection->getItems();
+    }
+
+    /**
      * @param AttachmentInterface $attachment
      * @return string
      * @throws LocalizedException
