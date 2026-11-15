@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Magenx\Rma\Service;
 
+use Magenx\Rma\Api\OrderEligibilityInterface;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\RMA\StatusCodes;
 use Magenx\Rma\Model\RMA\StatusResolver;
@@ -21,17 +22,10 @@ use Magento\Framework\Phrase;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderItemInterface;
 
-class OrderEligibility
+class OrderEligibility implements OrderEligibilityInterface
 {
-    /**
-     * Outcomes of explain(). Only RESULT_OK means a return may be created.
-     */
-    const RESULT_OK = 'ok';
-    const RESULT_DISABLED = 'disabled';
-    const RESULT_ORDER_STATUS = 'order_status';
-    const RESULT_RETURN_PERIOD = 'return_period';
-    const RESULT_NOT_SHIPPED = 'not_shipped';
-    const RESULT_NO_ITEMS = 'no_items';
+    // The RESULT_* outcomes of explain() are declared on OrderEligibilityInterface
+    // and remain reachable as OrderEligibility::RESULT_*.
 
     /**
      * RMA statuses whose items no longer hold order qty. A rejected or canceled

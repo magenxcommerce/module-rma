@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Magenx\Rma\Test\Unit\Service;
 
+use Magenx\Rma\Api\OrderEligibilityInterface;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\RMA\StatusResolver;
 use Magenx\Rma\Model\ResourceModel\Item\Collection as RmaItemCollection;
@@ -72,6 +73,25 @@ class OrderEligibilityTest extends TestCase
     // -------------------------------------------------------------------------
     // isOrderEligible
     // -------------------------------------------------------------------------
+
+    /**
+     * Other modules depend on the interface; the service keeps the RESULT_*
+     * constants callers already use through its own name.
+     */
+    public function testTheServiceIsTheEligibilityContractOtherModulesUse(): void
+    {
+        $service = $this->createService();
+
+        $this->assertInstanceOf(OrderEligibilityInterface::class, $service);
+        $this->assertSame(OrderEligibilityInterface::RESULT_OK, OrderEligibility::RESULT_OK);
+        $this->assertSame('not_shipped', OrderEligibility::RESULT_NOT_SHIPPED);
+
+        $di = (string) file_get_contents(dirname(__DIR__, 3) . '/etc/di.xml');
+        $this->assertMatchesRegularExpression(
+            '#<preference for="Magenx\\\\Rma\\\\Api\\\\OrderEligibilityInterface"\s+type="Magenx\\\\Rma\\\\Service\\\\OrderEligibility"/>#',
+            $di
+        );
+    }
 
     public function testIsOrderEligibleReturnsFalseWhenModuleDisabled(): void
     {
