@@ -59,6 +59,8 @@ class WithdrawalServiceTest extends TestCase
     private ?RMAInterface $existingRma = null;
     private bool $enabled = true;
     private bool $lockFree = true;
+    /** @var int[] order item ids that cannot be returned (virtual) */
+    private array $virtualIds = [];
     private LockManagerInterface&MockObject $lockManager;
 
     protected function setUp(): void
@@ -68,7 +70,9 @@ class WithdrawalServiceTest extends TestCase
         $this->moduleConfig->method('isWithdrawalAutoApproveEnabled')->willReturn(true);
 
         $this->orderEligibility = $this->createMock(OrderEligibility::class);
-        $this->orderEligibility->method('isReturnableType')->willReturn(true);
+        $this->orderEligibility->method('isReturnableType')->willReturnCallback(
+            fn(OrderItemInterface $item) => !in_array((int)$item->getItemId(), $this->virtualIds, true)
+        );
         $this->orderEligibility->method('getReturnableQty')->willReturnCallback(
             fn(OrderItemInterface $item) => $this->lines[(int)$item->getItemId()]['shipped']
         );
@@ -434,5 +438,22 @@ class WithdrawalServiceTest extends TestCase
         $this->expectException(LocalizedException::class);
 
         $this->service->submit($this->order([10 => ['shipped' => 1, 'open' => 0]]), [], 'TX-1', self::DECLARED_AT);
+    }
+
+    public function testOpenVirtualLineKeepsTheOrderFromBeingCanceled(): void
+    {
+        $this->virtualIds = [99];
+        $this->shippedOn(null);
+        $this->orderManagement->expects($this->never())->method('cancel');
+
+        $result = $this->service->submit(
+            $this->order([10 => ['shipped' => 0, 'open' => 1], 99 => ['shipped' => 0, 'open' => 1]]),
+            [10 => 1],
+            'TX-1',
+            self::DECLARED_AT
+        );
+
+        $this->assertFalse($result->orderCanceled);
+        $this->assertSame([WithdrawalResult::REVIEW_UNSHIPPED], $result->reviewReasons);
     }
 }

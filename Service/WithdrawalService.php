@@ -269,7 +269,9 @@ class WithdrawalService
         array $openQty,
         array &$review
     ): bool {
-        $coversEverything = $unshippedQty == $openQty;
+        // "Every open unit" includes lines that cannot be returned (virtual, downloadable):
+        // canceling the order would cancel those too (PRD F5 step 5).
+        $coversEverything = $unshippedQty == $openQty && !$this->hasOpenNonReturnableLines($order);
         $nothingShipped = $this->withdrawalEligibility->getLastShipmentDate($order) === null;
         $cancelable = !method_exists($order, 'canCancel') || $order->canCancel();
 
@@ -290,6 +292,27 @@ class WithdrawalService
         }
 
         $review[] = WithdrawalResult::REVIEW_CANCEL_FAILED;
+
+        return false;
+    }
+
+    /**
+     * @param OrderInterface $order
+     * @return bool True when a top-level line that cannot be returned still has open qty
+     */
+    protected function hasOpenNonReturnableLines(OrderInterface $order): bool
+    {
+        foreach ($order->getItems() ?? [] as $orderItem) {
+            if ($orderItem->getParentItemId() || $this->orderEligibility->isReturnableType($orderItem)) {
+                continue;
+            }
+            $open = (int)$orderItem->getQtyOrdered()
+                - (int)$orderItem->getQtyCanceled()
+                - (int)$orderItem->getQtyRefunded();
+            if ($open > 0) {
+                return true;
+            }
+        }
 
         return false;
     }
