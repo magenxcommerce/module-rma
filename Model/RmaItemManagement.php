@@ -6,6 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: save() checks the item belongs to the RMA and its order, and
+ * that a new item's qty is returnable.
  */
 declare(strict_types=1);
 
@@ -23,6 +25,8 @@ use Magento\Framework\Exception\CouldNotDeleteException;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Sales\Api\OrderRepositoryInterface;
+use Magenx\Rma\Service\OrderEligibility;
 
 class RmaItemManagement extends AbstractRmaManagement implements RmaItemManagementInterface
 {
@@ -31,12 +35,16 @@ class RmaItemManagement extends AbstractRmaManagement implements RmaItemManageme
      * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
      * @param SortOrderBuilder $sortOrderBuilder
      * @param ItemRepositoryInterface $itemRepository
+     * @param OrderRepositoryInterface $orderRepository
+     * @param OrderEligibility $orderEligibility
      */
     public function __construct(
         RMARepositoryInterface $rmaRepository,
         SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
         SortOrderBuilder $sortOrderBuilder,
-        protected readonly ItemRepositoryInterface $itemRepository
+        protected readonly ItemRepositoryInterface $itemRepository,
+        protected readonly OrderRepositoryInterface $orderRepository,
+        protected readonly OrderEligibility $orderEligibility
     ) {
         parent::__construct($rmaRepository, $searchCriteriaBuilderFactory, $sortOrderBuilder);
     }
@@ -66,7 +74,35 @@ class RmaItemManagement extends AbstractRmaManagement implements RmaItemManageme
      */
     public function save(int $rmaId, ItemInterface $item): ItemInterface
     {
-        $this->validateRmaExists($rmaId);
+        $rma = $this->rmaRepository->get($rmaId);
+
+        if ($item->getEntityId()) {
+            // An update may not move an item to another RMA or another order line.
+            $existing = $this->itemRepository->get((int)$item->getEntityId());
+            if ($existing->getRmaId() !== $rmaId) {
+                throw new LocalizedException(
+                    __('Item %1 does not belong to RMA %2.', $item->getEntityId(), $rmaId)
+                );
+            }
+            if ($item->getOrderItemId() && $item->getOrderItemId() !== $existing->getOrderItemId()) {
+                throw new LocalizedException(__('The order item of a return item cannot be changed.'));
+            }
+        } else {
+            // A new item follows the same rules as a return created anywhere else (PRD BR-1, BR-2).
+            $order = $this->orderRepository->get($rma->getOrderId());
+            $available = array_column(
+                $this->orderEligibility->getEligibleItems($order),
+                'qty_available',
+                'order_item_id'
+            );
+            $qty = $item->getQtyRequested();
+            if ($qty < 1 || $qty > ($available[$item->getOrderItemId()] ?? 0)) {
+                throw new LocalizedException(
+                    __('Item %1 is not eligible for return in this quantity.', $item->getOrderItemId())
+                );
+            }
+        }
+
         $item->setRmaId($rmaId);
 
         return $this->itemRepository->save($item);
