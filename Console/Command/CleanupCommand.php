@@ -6,7 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
- * Modified by MagenX: treats refunded as closed.
+ * Modified by MagenX: treats refunded as closed; expires only returns that wait on
+ * the customer and never withdrawal returns.
  */
 declare(strict_types=1);
 
@@ -38,6 +39,17 @@ class CleanupCommand extends Command
     ];
 
     /**
+     * Statuses where the next step is the customer's. Only these can expire:
+     * a return waiting on staff (new request, shipped, received) is never
+     * canceled on the customer's behalf, because that would free its units
+     * for a new return while the merchant may hold the goods.
+     */
+    const EXPIRABLE_STATUSES = [
+        StatusCodes::NEED_DETAILS,
+        StatusCodes::APPROVED,
+    ];
+
+    /**
      * @param RMARepositoryInterface $rmaRepository
      * @param SearchCriteriaBuilder $searchCriteriaBuilder
      * @param FilterBuilder $filterBuilder
@@ -60,7 +72,7 @@ class CleanupCommand extends Command
     protected function configure(): void
     {
         $this->setName('rma:cleanup')
-            ->setDescription('Cancel RMA requests that have been inactive for a given number of days')
+            ->setDescription('Cancel inactive RMA requests that wait on the customer (need details, approved; never withdrawals)')
             ->addOption(
                 self::OPTION_DAYS,
                 null,
@@ -99,10 +111,10 @@ class CleanupCommand extends Command
             return Cli::RETURN_FAILURE;
         }
 
-        $closedStatusIds = $this->statusResolver->getIdsByCodes(self::CLOSED_STATUSES);
+        $expirableStatusIds = $this->statusResolver->getIdsByCodes(self::EXPIRABLE_STATUSES);
 
-        if (empty($closedStatusIds)) {
-            $output->writeln('<error>Could not resolve closed status IDs.</error>');
+        if (empty($expirableStatusIds)) {
+            $output->writeln('<error>Could not resolve expirable status IDs.</error>');
             return Cli::RETURN_FAILURE;
         }
 
@@ -115,18 +127,26 @@ class CleanupCommand extends Command
             ->setValue($cutoffDate)
             ->create();
 
-        // Filter: status_id NOT IN closed statuses
+        // Filter: only returns waiting on the customer
         $statusFilter = $this->filterBuilder
             ->setField(RMAInterface::STATUS_ID)
-            ->setConditionType('nin')
-            ->setValue($closedStatusIds)
+            ->setConditionType('in')
+            ->setValue($expirableStatusIds)
             ->create();
 
-        $dateFilterGroup = $this->filterGroupBuilder->setFilters([$dateFilter])->create();
-        $statusFilterGroup = $this->filterGroupBuilder->setFilters([$statusFilter])->create();
+        // Filter: never a withdrawal return; it carries a legal right, staff close it
+        $withdrawalFilter = $this->filterBuilder
+            ->setField(RMAInterface::IS_WITHDRAWAL)
+            ->setConditionType('eq')
+            ->setValue(0)
+            ->create();
 
         $searchCriteria = $this->searchCriteriaBuilder->create();
-        $searchCriteria->setFilterGroups([$dateFilterGroup, $statusFilterGroup]);
+        $searchCriteria->setFilterGroups([
+            $this->filterGroupBuilder->setFilters([$dateFilter])->create(),
+            $this->filterGroupBuilder->setFilters([$statusFilter])->create(),
+            $this->filterGroupBuilder->setFilters([$withdrawalFilter])->create(),
+        ]);
 
         $results = $this->rmaRepository->getList($searchCriteria);
 
