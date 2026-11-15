@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: uploads go to the admin's own pending folder.
  */
 declare(strict_types=1);
 
@@ -46,7 +47,11 @@ class Upload extends BaseController implements HttpPostActionInterface
         $result = $this->jsonFactory->create();
 
         try {
-            $fileData = $this->attachmentService->uploadToTmp('attachment', $this->resolveStoreId());
+            $fileData = $this->attachmentService->uploadToTmp(
+                'attachment',
+                $this->resolveStoreId(),
+                'admin_' . (int)$this->_auth->getUser()?->getId()
+            );
             return $result->setData(['success' => true, 'file' => $fileData]);
         } catch (Exception $e) {
             return $result->setData(['success' => false, 'message' => $e->getMessage()]);

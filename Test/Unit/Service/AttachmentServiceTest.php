@@ -170,4 +170,37 @@ class AttachmentServiceTest extends TestCase
 
         $service->moveFromTmpAndSave(1, array_fill(0, 6, ['file' => 'a.pdf', 'name' => 'a.pdf']));
     }
+
+    public function testFilesAreTakenFromTheUploadersOwnFolderWithTheStoredSize(): void
+    {
+        $config = $this->createMock(ModuleConfig::class);
+        $config->method('getMaxAttachmentFiles')->willReturn(5);
+        $attachment = $this->createMock(AttachmentInterface::class);
+        $attachment->expects($this->once())->method('setFileSize')->with(2048);
+        $factory = $this->createMock(AttachmentInterfaceFactory::class);
+        $factory->method('create')->willReturn($attachment);
+        $filesystem = $this->createMock(Filesystem::class);
+        $filesystem->method('getDirectoryWrite')->willReturn($this->varDirectory);
+
+        $this->varDirectory->expects($this->once())->method('isExist')
+            ->with('rma/tmp/admin_5/invoice.pdf')->willReturn(true);
+        $this->varDirectory->expects($this->once())->method('renameFile')
+            ->with('rma/tmp/admin_5/invoice.pdf', 'rma/attachments/9/invoice.pdf');
+        $this->varDirectory->method('stat')->willReturn(['size' => 2048]);
+        $mime = $this->createMock(Mime::class);
+        $mime->method('getMimeType')->willReturn('application/pdf');
+
+        $service = new AttachmentService(
+            $filesystem,
+            $this->createMock(UploaderFactory::class),
+            $config,
+            $factory,
+            $this->createMock(AttachmentRepositoryInterface::class),
+            $this->createMock(AttachmentCollectionFactory::class),
+            $mime,
+            $this->createMock(JsonSerializer::class)
+        );
+
+        $service->moveFromTmpAndSave(9, [['file' => '../invoice.pdf', 'name' => 'invoice.pdf', 'size' => 1]], null, 0, 'admin_5');
+    }
 }

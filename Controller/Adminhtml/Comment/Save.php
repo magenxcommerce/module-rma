@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: attachments are taken from the admin's own pending folder.
  */
 declare(strict_types=1);
 
@@ -80,7 +81,8 @@ class Save extends BaseController implements HttpPostActionInterface
                     $attachmentsJson,
                     $rmaId,
                     (int)$comment->getEntityId(),
-                    $this->resolveStoreId($rmaId)
+                    $this->resolveStoreId($rmaId),
+                    'admin_' . (int)$this->authSession->getUser()?->getId()
                 );
             } catch (LocalizedException $e) {
                 $responseData['attachment_error'] = $e->getMessage();

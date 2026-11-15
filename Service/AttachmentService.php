@@ -6,7 +6,8 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
- * Modified by MagenX: more files than allowed refuse the whole upload.
+ * Modified by MagenX: more files than allowed refuse the whole upload; pending uploads
+ * are kept per uploader and pruned after a day; the stored size comes from the file.
  */
 declare(strict_types=1);
 
@@ -33,6 +34,7 @@ use Magento\Framework\Exception\NoSuchEntityException;
 class AttachmentService
 {
     const BASE_TMP_PATH = 'rma/tmp';
+    const TMP_TTL_SECONDS = 86400;
     const BASE_PATH = 'rma/attachments';
     const BYTES_PER_KB = 1024;
     const BYTES_PER_MB = 1024 * 1024;
@@ -64,12 +66,55 @@ class AttachmentService
     }
 
     /**
+     * Pending uploads live in a folder per uploader (e.g. "admin_5"), so one admin cannot
+     * claim another's pending file by naming it, and a save only finds its own uploads.
+     *
+     * @param string $scope
+     * @return string Path relative to var/
+     */
+    protected function tmpDir(string $scope): string
+    {
+        $scope = preg_replace('/[^a-z0-9_]/i', '', $scope);
+
+        return $scope === '' ? self::BASE_TMP_PATH : self::BASE_TMP_PATH . '/' . $scope;
+    }
+
+    /**
+     * Removes this uploader's pending files older than TMP_TTL_SECONDS: uploads that
+     * were never attached otherwise stay on disk forever.
+     *
+     * @param string $scope
+     * @return void
+     */
+    protected function pruneTmp(string $scope): void
+    {
+        $dir = $this->tmpDir($scope);
+
+        try {
+            if (!$this->varDirectory->isExist($dir)) {
+                return;
+            }
+            $cutoff = time() - self::TMP_TTL_SECONDS;
+            foreach ($this->varDirectory->read($dir) as $path) {
+                $modified = (int)($this->varDirectory->stat($path)['mtime'] ?? 0);
+                if ($this->varDirectory->isFile($path) && $modified < $cutoff) {
+                    $this->varDirectory->delete($path);
+                }
+            }
+        } catch (\Exception) {
+            // Cleanup is best effort; it never blocks an upload.
+            return;
+        }
+    }
+
+    /**
      * @param string $fileId
      * @param int $storeId
+     * @param string $scope Uploader folder, see tmpDir()
      * @return array
      * @throws LocalizedException
      */
-    public function uploadToTmp(string $fileId, int $storeId = 0): array
+    public function uploadToTmp(string $fileId, int $storeId = 0, string $scope = ''): array
     {
         $maxBytes = $this->moduleConfig->getMaxAttachmentFileSizeBytes($storeId);
 
@@ -89,7 +134,9 @@ class AttachmentService
             throw new LocalizedException(__('File type not allowed.'));
         }
 
-        $tmpPath = $this->varDirectory->getAbsolutePath(self::BASE_TMP_PATH);
+        $this->pruneTmp($scope);
+        $tmpDir = $this->tmpDir($scope);
+        $tmpPath = $this->varDirectory->getAbsolutePath($tmpDir);
         $result = $uploader->save($tmpPath);
 
         if (!$result) {
@@ -101,7 +148,7 @@ class AttachmentService
         $fileSize = (int)filesize($fullPath);
 
         if ($fileSize > $maxBytes) {
-            $this->varDirectory->delete(self::BASE_TMP_PATH . '/' . $result['file']);
+            $this->varDirectory->delete($tmpDir . '/' . $result['file']);
             throw new LocalizedException(
                 __('File exceeds the maximum allowed size of %1 MB.', $this->moduleConfig->getMaxAttachmentFileSize($storeId))
             );
@@ -112,7 +159,7 @@ class AttachmentService
             'name' => $result['name'] ?? $result['file'],
             'size' => $fileSize,
             'type' => $result['type'] ?? '',
-            'tmp_path' => self::BASE_TMP_PATH . '/' . $result['file'],
+            'tmp_path' => $tmpDir . '/' . $result['file'],
         ];
     }
 
@@ -121,11 +168,17 @@ class AttachmentService
      * @param array $tmpFiles
      * @param int|null $commentId
      * @param int $storeId
+     * @param string $scope Uploader folder the files were uploaded to, see tmpDir()
      * @return AttachmentInterface[]
      * @throws LocalizedException
      */
-    public function moveFromTmpAndSave(int $rmaId, array $tmpFiles, ?int $commentId = null, int $storeId = 0): array
-    {
+    public function moveFromTmpAndSave(
+        int $rmaId,
+        array $tmpFiles,
+        ?int $commentId = null,
+        int $storeId = 0,
+        string $scope = ''
+    ): array {
         $maxFiles = $this->moduleConfig->getMaxAttachmentFiles($storeId);
 
         // More files than allowed refuse the whole upload (PRD FR-M3, BR-40); silently
@@ -143,7 +196,7 @@ class AttachmentService
                 continue;
             }
 
-            $sourcePath = self::BASE_TMP_PATH . '/' . $fileName;
+            $sourcePath = $this->tmpDir($scope) . '/' . $fileName;
             $destDir = self::BASE_PATH . '/' . $rmaId;
             $destPath = $destDir . '/' . $fileName;
 
@@ -162,7 +215,8 @@ class AttachmentService
             $attachment->setCommentId($commentId);
             $attachment->setFileName($tmpFile['name'] ?? $fileName);
             $attachment->setFilePath($destPath);
-            $attachment->setFileSize((int)($tmpFile['size'] ?? 0));
+            // The size comes from the stored file, not from the client's JSON.
+            $attachment->setFileSize((int)($this->varDirectory->stat($destPath)['size'] ?? 0));
             $attachment->setMimeType($mimeType);
 
             $this->attachmentRepository->save($attachment);
@@ -243,9 +297,15 @@ class AttachmentService
      * @param int $storeId
      * @return void
      * @throws LocalizedException
+     * @param string $scope Uploader folder, see tmpDir()
      */
-    public function saveFromJson(string $json, int $rmaId, ?int $commentId = null, int $storeId = 0): void
-    {
+    public function saveFromJson(
+        string $json,
+        int $rmaId,
+        ?int $commentId = null,
+        int $storeId = 0,
+        string $scope = ''
+    ): void {
         if ($json === '' || $json === '[]') {
             return;
         }
@@ -255,7 +315,7 @@ class AttachmentService
             return;
         }
 
-        $this->moveFromTmpAndSave($rmaId, $tmpFiles, $commentId, $storeId);
+        $this->moveFromTmpAndSave($rmaId, $tmpFiles, $commentId, $storeId, $scope);
     }
 
     /**
