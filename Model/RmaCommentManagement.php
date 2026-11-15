@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: save() stores only known author types.
  */
 declare(strict_types=1);
 
@@ -67,6 +68,16 @@ class RmaCommentManagement extends AbstractRmaManagement implements RmaCommentMa
     {
         $this->validateRmaExists($rmaId);
         $comment->setRmaId($rmaId);
+
+        // The admin API writes staff comments; author_type is rendered as markup in the
+        // admin timeline, so only the two known values are stored.
+        if (!in_array(
+            $comment->getAuthorType(),
+            [CommentInterface::AUTHOR_TYPE_ADMIN, CommentInterface::AUTHOR_TYPE_CUSTOMER],
+            true
+        )) {
+            $comment->setAuthorType(CommentInterface::AUTHOR_TYPE_ADMIN);
+        }
 
         return $this->commentRepository->save($comment);
     }
