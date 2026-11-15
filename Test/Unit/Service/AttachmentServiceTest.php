@@ -143,4 +143,31 @@ class AttachmentServiceTest extends TestCase
             'zero bytes' => [0,             '0 B'],
         ];
     }
+
+    public function testMoreFilesThanAllowedRefuseTheWholeUpload(): void
+    {
+        $config = $this->createMock(ModuleConfig::class);
+        $config->method('getMaxAttachmentFiles')->willReturn(5);
+        $repository = $this->createMock(AttachmentRepositoryInterface::class);
+        $repository->expects($this->never())->method('save');
+        $filesystem = $this->createMock(Filesystem::class);
+        $filesystem->method('getDirectoryWrite')->willReturn($this->varDirectory);
+        $this->varDirectory->expects($this->never())->method('renameFile');
+
+        $service = new AttachmentService(
+            $filesystem,
+            $this->createMock(UploaderFactory::class),
+            $config,
+            $this->createMock(AttachmentInterfaceFactory::class),
+            $repository,
+            $this->createMock(AttachmentCollectionFactory::class),
+            $this->createMock(Mime::class),
+            $this->createMock(JsonSerializer::class)
+        );
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessageMatches('/at most 5 files/');
+
+        $service->moveFromTmpAndSave(1, array_fill(0, 6, ['file' => 'a.pdf', 'name' => 'a.pdf']));
+    }
 }

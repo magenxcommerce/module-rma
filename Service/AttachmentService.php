@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: more files than allowed refuse the whole upload.
  */
 declare(strict_types=1);
 
@@ -126,9 +127,16 @@ class AttachmentService
     public function moveFromTmpAndSave(int $rmaId, array $tmpFiles, ?int $commentId = null, int $storeId = 0): array
     {
         $maxFiles = $this->moduleConfig->getMaxAttachmentFiles($storeId);
+
+        // More files than allowed refuse the whole upload (PRD FR-M3, BR-40); silently
+        // dropping the extra files lost them without telling anyone.
+        if (count($tmpFiles) > $maxFiles) {
+            throw new LocalizedException(__('You can attach at most %1 files at a time.', $maxFiles));
+        }
+
         $saved = [];
 
-        foreach (array_slice($tmpFiles, 0, $maxFiles) as $tmpFile) {
+        foreach ($tmpFiles as $tmpFile) {
             // phpcs:ignore Magento2.Functions.DiscouragedFunction.Discouraged -- string-level basename, used to strip any directory part from an untrusted name.
             $fileName = basename($tmpFile['file'] ?? '');
             if ($fileName === '') {
