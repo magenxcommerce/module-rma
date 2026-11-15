@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: treats refunded as closed.
  */
 declare(strict_types=1);
 
@@ -33,6 +34,7 @@ class CleanupCommand extends Command
         StatusCodes::RESOLVED,
         StatusCodes::REJECTED,
         StatusCodes::CANCELED_BY_CUSTOMER,
+        StatusCodes::REFUNDED,
     ];
 
     /**
