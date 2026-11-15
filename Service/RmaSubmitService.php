@@ -9,7 +9,8 @@
  * Modified by MagenX: createRma() takes an initial status and a callback that
  * fills extra RMA fields before the save; locks the order row so parallel returns
  * cannot together exceed the returnable qty; refuses item quantities below 1 and
- * unknown or inactive reason, resolution and condition ids.
+ * unknown or inactive reason, resolution and condition ids, and the withdrawal
+ * reason on an ordinary return.
  */
 declare(strict_types=1);
 
@@ -27,6 +28,7 @@ use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\ItemFactory;
 use Magenx\Rma\Model\RMA\StatusCodes;
 use Magenx\Rma\Model\RMA\StatusResolver;
+use Magenx\Rma\Model\RMA\WithdrawalCodes;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\LocalizedException;
@@ -194,12 +196,16 @@ class RmaSubmitService
         array $selectedItems
     ): void {
 
-        $this->assertSelectable(
+        $reason = $this->assertSelectable(
             $this->reasonRepository,
             $reasonId,
             $systemSet,
             __('The selected return reason is not available.')
         );
+        // The withdrawal reason is set by the system for withdrawal returns only.
+        if (!$systemSet && $reason->getCode() === WithdrawalCodes::REASON) {
+            throw new LocalizedException(__('The selected return reason is not available.'));
+        }
         $this->assertSelectable(
             $this->resolutionTypeRepository,
             $resolutionTypeId,

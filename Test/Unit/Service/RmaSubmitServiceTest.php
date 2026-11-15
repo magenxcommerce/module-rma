@@ -76,7 +76,7 @@ class RmaSubmitServiceTest extends TestCase
         $this->reasonRepository = $this->createMock(ReasonRepositoryInterface::class);
         $this->reasonRepository->method('get')->willReturnCallback(fn(int $id) => $id === 404
             ? throw new NoSuchEntityException(__('missing'))
-            : $this->createConfiguredMock(ReasonInterface::class, ['getIsActive' => $id === 9 ? 0 : 1, 'getCode' => 'r' . $id]));
+            : $this->createConfiguredMock(ReasonInterface::class, ['getIsActive' => $id === 9 ? 0 : 1, 'getCode' => $id === 77 ? 'withdrawal' : 'r' . $id]));
         $this->resolutionTypeRepository = $this->createMock(ResolutionTypeRepositoryInterface::class);
         $this->resolutionTypeRepository->method('get')->willReturnCallback(
             fn(int $id) => $this->createConfiguredMock(ResolutionTypeInterface::class, ['getIsActive' => $id === 9 ? 0 : 1])
@@ -552,6 +552,7 @@ class RmaSubmitServiceTest extends TestCase
             'inactive reason' => [9, 1, null, '/reason is not available/'],
             'inactive resolution' => [1, 9, null, '/resolution is not available/'],
             'inactive condition' => [1, 1, 9, '/condition is not available/'],
+            'withdrawal reason on an ordinary return' => [77, 1, null, '/reason is not available/'],
         ];
     }
 
