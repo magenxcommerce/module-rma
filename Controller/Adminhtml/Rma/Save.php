@@ -8,7 +8,8 @@
  * identifiers renamed, GraphQL surface split into a sibling module.
  * Modified by MagenX: a new RMA is created through RmaSubmitService::createRma(),
  * so header and items share one transaction and the new-return emails are sent;
- * the order's eligibility is re-checked on the server.
+ * the order's eligibility is re-checked on the server; reason and resolution are
+ * editable on an existing RMA, except a withdrawal one.
  */
 declare(strict_types=1);
 
@@ -89,6 +90,25 @@ class Save extends BaseController implements HttpPostActionInterface
 
         if (isset($data['status_id'])) {
             $model->setStatusId((int)$data['status_id']);
+        }
+
+        // Staff may change reason and resolution (PRD FR-R6); a withdrawal return keeps
+        // the ones the system set (PRD FR-W5).
+        foreach (['reason_id' => 'setReasonId', 'resolution_type_id' => 'setResolutionTypeId'] as $field => $setter) {
+            $value = (int)($data[$field] ?? 0);
+            $current = $field === 'reason_id' ? $model->getReasonId() : $model->getResolutionTypeId();
+            if (!$value || $value === $current) {
+                continue;
+            }
+            if ($model->isWithdrawal()) {
+                $this->messageManager->addErrorMessage(
+                    __('The reason and resolution of a withdrawal return are set by the system.')
+                );
+                $this->dataPersistor->set('rma_entity', $data);
+
+                return $resultRedirect->setPath('*/*/edit', ['entity_id' => $id]);
+            }
+            $model->$setter($value);
         }
 
         return $this->saveAndRedirect($resultRedirect, fn(): RMAInterface => $this->rmaRepository->save($model), $data, $id);

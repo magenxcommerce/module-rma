@@ -130,4 +130,47 @@ class SaveTest extends TestCase
 
         $this->controller->execute();
     }
+
+    private function existingRma(bool $withdrawal): RMAInterface&MockObject
+    {
+        $rma = $this->createMock(RMAInterface::class);
+        $rma->method('getReasonId')->willReturn(3);
+        $rma->method('getResolutionTypeId')->willReturn(4);
+        $rma->method('isWithdrawal')->willReturn($withdrawal);
+        $this->rmaRepository->method('get')->with(10)->willReturn($rma);
+
+        return $rma;
+    }
+
+    private function postEdit(): void
+    {
+        $this->request = $this->createMock(Http::class);
+        $this->request->method('getPostValue')->willReturn([
+            'entity_id' => 10, 'status_id' => 2, 'reason_id' => 6, 'resolution_type_id' => 4,
+        ]);
+        $property = new \ReflectionProperty($this->controller, '_request');
+        $property->setValue($this->controller, $this->request);
+    }
+
+    public function testStaffCanChangeTheReasonOfAnOrdinaryReturn(): void
+    {
+        $this->postEdit();
+        $rma = $this->existingRma(false);
+        $rma->expects($this->once())->method('setReasonId')->with(6);
+        $rma->expects($this->never())->method('setResolutionTypeId');
+        $this->rmaRepository->expects($this->once())->method('save')->with($rma)->willReturn($rma);
+
+        $this->controller->execute();
+    }
+
+    public function testWithdrawalKeepsItsReason(): void
+    {
+        $this->postEdit();
+        $rma = $this->existingRma(true);
+        $rma->expects($this->never())->method('setReasonId');
+        $this->rmaRepository->expects($this->never())->method('save');
+        $this->messageManager->expects($this->once())->method('addErrorMessage');
+
+        $this->controller->execute();
+    }
 }
