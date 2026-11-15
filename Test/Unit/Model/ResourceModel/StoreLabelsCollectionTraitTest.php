@@ -11,25 +11,6 @@ use Magenx\Rma\Model\Reason;
 use Magenx\Rma\Model\ResourceModel\StoreLabelsCollectionTrait;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Stands in for AbstractCollection: the trait only needs _items, getResource() and a parent _afterLoad().
- */
-class LabelledCollectionStub
-{
-    public array $_items = [];
-    public object $resource;
-
-    protected function _afterLoad()
-    {
-        return $this;
-    }
-
-    public function getResource(): object
-    {
-        return $this->resource;
-    }
-}
-
 class StoreLabelsCollectionTraitTest extends TestCase
 {
     public function testItemsGetTheirStoreLabelsFromOneQuery(): void

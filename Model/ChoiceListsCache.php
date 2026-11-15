@@ -13,7 +13,7 @@ namespace Magenx\Rma\Model;
  * The GraphQL choice-list query tags its cached response with it; saving or deleting
  * any of those lookup entries purges it through the entries' identities.
  */
-final class ChoiceListsCache
+class ChoiceListsCache
 {
     public const TAG = 'rma_choice_lists';
 }

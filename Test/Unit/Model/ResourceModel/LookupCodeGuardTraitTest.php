@@ -14,43 +14,6 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Model\AbstractModel;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Stands in for AbstractDb: the trait only needs these members.
- */
-class GuardedResourceStub
-{
-    public ?string $storedCode = null;
-    public array $calls = [];
-    public AdapterInterface $connection;
-
-    protected function _beforeSave(AbstractModel $object): static
-    {
-        $this->calls[] = 'parent_before_save';
-        return $this;
-    }
-
-    protected function _beforeDelete(AbstractModel $object): static
-    {
-        $this->calls[] = 'parent_before_delete';
-        return $this;
-    }
-
-    public function getConnection(): AdapterInterface
-    {
-        return $this->connection;
-    }
-
-    public function getMainTable(): string
-    {
-        return 'rma_reason';
-    }
-
-    public function getIdFieldName(): string
-    {
-        return 'entity_id';
-    }
-}
-
 class LookupCodeGuardTraitTest extends TestCase
 {
     private object $resource;

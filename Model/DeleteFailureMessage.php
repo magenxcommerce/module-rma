@@ -30,6 +30,7 @@ class DeleteFailureMessage
      * @param string $entityLabel e.g. "RMA Reason"
      * @return Phrase
      */
+    // phpcs:ignore Magento2.Functions.StaticFunction.StaticFunction -- pure mapping of an exception to a message, shared by the repository and the mass-delete controller; nothing to intercept.
     public static function forException(Throwable $e, string $entityLabel): Phrase
     {
         if (self::isForeignKeyViolation($e)) {
@@ -47,6 +48,7 @@ class DeleteFailureMessage
      * @param Throwable $e
      * @return bool
      */
+    // phpcs:ignore Magento2.Functions.StaticFunction.StaticFunction -- private helper of the static mapping above.
     private static function isForeignKeyViolation(Throwable $e): bool
     {
         for ($current = $e; $current !== null; $current = $current->getPrevious()) {
