@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/magenxcommerce/module-rma/compare/v1.1.3...v1.2.0) (2026-11-15)
+
+
+### Features
+
+* **api:** expose the returnable-quantity rule as OrderEligibilityInterface ([#21](https://github.com/magenxcommerce/module-rma/issues/21)) ([57b1055](https://github.com/magenxcommerce/module-rma/commit/57b105503c10c5028c288b69c974af81eb340745))
+
+
+### Bug Fixes
+
+* Refund rule (spec gap 1) ([#20](https://github.com/magenxcommerce/module-rma/issues/20)) ([4b4845e](https://github.com/magenxcommerce/module-rma/commit/4b4845ec98940f69a2bbf4566df09ad2c6be7977))
+
 ## [1.1.3](https://github.com/magenxcommerce/module-rma/compare/v1.1.2...v1.1.3) (2026-11-01)
 
 
