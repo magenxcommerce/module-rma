@@ -300,4 +300,48 @@ class RMARepositoryTest extends TestCase
         $this->assertContains('rma_status_change_after', $dispatched);
         $this->assertCount(1, $dispatched);
     }
+
+    // -------------------------------------------------------------------------
+    // partial update (REST PUT)
+    // -------------------------------------------------------------------------
+
+    private function realRma(array $data): RMA
+    {
+        $rma = (new \ReflectionClass(RMA::class))->newInstanceWithoutConstructor();
+        $rma->setData($data);
+
+        return $rma;
+    }
+
+    public function testPartialUpdateKeepsStoredFieldsAndFiresNoStatusChange(): void
+    {
+        $stored = $this->realRma([
+            'entity_id' => 10,
+            'status_id' => 2,
+            'increment_id' => 'RET-000000010',
+            'order_id' => 100,
+            'customer_id' => 5,
+            'store_id' => 1,
+            'is_withdrawal' => 0,
+            'updated_at' => '2026-01-01 00:00:00',
+        ]);
+        $this->rmaFactory->method('create')->willReturn($stored);
+
+        $incoming = $this->realRma([
+            'entity_id' => 10,
+            'return_tracking_number' => 'X',
+            'order_id' => 999,
+        ]);
+
+        $this->eventManager->expects($this->never())->method('dispatch');
+        $this->resourceModel->expects($this->once())->method('save')->with($incoming);
+
+        $this->repository->save($incoming);
+
+        $this->assertSame(2, $incoming->getStatusId());
+        $this->assertSame('RET-000000010', $incoming->getIncrementId());
+        $this->assertSame(100, $incoming->getOrderId());
+        $this->assertSame('X', $incoming->getData('return_tracking_number'));
+        $this->assertFalse($incoming->hasData('updated_at'));
+    }
 }
