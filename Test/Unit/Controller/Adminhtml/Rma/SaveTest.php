@@ -11,6 +11,7 @@ use Magenx\Rma\Api\Data\RMAInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\Rma\Save;
 use Magenx\Rma\Model\RMA\StatusResolver;
+use Magenx\Rma\Service\OrderEligibility;
 use Magenx\Rma\Service\RmaSubmitService;
 use Magento\Backend\App\Action\Context;
 use Magento\Backend\Model\View\Result\Redirect;
@@ -31,6 +32,7 @@ class SaveTest extends TestCase
     private ManagerInterface&MockObject $messageManager;
     private RMARepositoryInterface&MockObject $rmaRepository;
     private RmaSubmitService&MockObject $submitService;
+    private OrderEligibility&MockObject $eligibility;
     private Save $controller;
 
     protected function setUp(): void
@@ -59,6 +61,7 @@ class SaveTest extends TestCase
         $this->submitService->method('getSelectedItems')->willReturn([5 => ['qty_requested' => 1, 'condition_id' => null]]);
         $statusResolver = $this->createMock(StatusResolver::class);
         $statusResolver->method('getCodeById')->with(2)->willReturn('approved');
+        $this->eligibility = $this->createMock(OrderEligibility::class);
 
         $this->controller = new Save(
             $context,
@@ -66,7 +69,8 @@ class SaveTest extends TestCase
             $orderRepository,
             $this->createMock(DataPersistorInterface::class),
             $this->submitService,
-            $statusResolver
+            $statusResolver,
+            $this->eligibility
         );
 
         $this->request->method('getPostValue')->willReturn([
@@ -80,6 +84,7 @@ class SaveTest extends TestCase
 
     public function testNewRmaIsCreatedInOneTransactionWithTheChosenStatus(): void
     {
+        $this->eligibility->method('explain')->willReturn(OrderEligibility::RESULT_OK);
         $rma = $this->createMock(RMAInterface::class);
         $this->submitService->expects($this->once())->method('createRma')
             ->with(
@@ -103,11 +108,25 @@ class SaveTest extends TestCase
 
     public function testFailedItemLeavesNothingAndReturnsToTheNewForm(): void
     {
+        $this->eligibility->method('explain')->willReturn(OrderEligibility::RESULT_OK);
         $this->submitService->method('createRma')
             ->willThrowException(new LocalizedException(__('Requested qty for item 5 exceeds available qty (0).')));
         $this->rmaRepository->expects($this->never())->method('save');
         $this->messageManager->expects($this->once())->method('addErrorMessage');
         $this->redirect->expects($this->once())->method('setPath')->with('*/*/new', []);
+
+        $this->controller->execute();
+    }
+
+    public function testIneligibleOrderIsRefusedWithTheSpecificReason(): void
+    {
+        $this->eligibility->method('explain')->willReturn(OrderEligibility::RESULT_RETURN_PERIOD);
+        $this->eligibility->method('describe')->with(OrderEligibility::RESULT_RETURN_PERIOD)
+            ->willReturn(__('The return period for this order has ended.'));
+        $this->submitService->expects($this->never())->method('createRma');
+        $this->messageManager->expects($this->once())->method('addErrorMessage')
+            ->with(__('The return period for this order has ended.'));
+        $this->redirect->expects($this->once())->method('setPath')->with('*/*/new');
 
         $this->controller->execute();
     }

@@ -7,7 +7,8 @@
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
  * Modified by MagenX: a new RMA is created through RmaSubmitService::createRma(),
- * so header and items share one transaction and the new-return emails are sent.
+ * so header and items share one transaction and the new-return emails are sent;
+ * the order's eligibility is re-checked on the server.
  */
 declare(strict_types=1);
 
@@ -18,6 +19,7 @@ use Magenx\Rma\Api\Data\RMAInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Controller\Adminhtml\Rma as BaseController;
 use Magenx\Rma\Model\RMA\StatusResolver;
+use Magenx\Rma\Service\OrderEligibility;
 use Magenx\Rma\Service\RmaSubmitService;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Request\DataPersistorInterface;
@@ -36,6 +38,7 @@ class Save extends BaseController implements HttpPostActionInterface
      * @param DataPersistorInterface $dataPersistor
      * @param RmaSubmitService $rmaSubmitService
      * @param StatusResolver $statusResolver
+     * @param OrderEligibility $orderEligibility
      */
     public function __construct(
         Context $context,
@@ -43,7 +46,8 @@ class Save extends BaseController implements HttpPostActionInterface
         protected readonly OrderRepositoryInterface $orderRepository,
         protected readonly DataPersistorInterface $dataPersistor,
         protected readonly RmaSubmitService $rmaSubmitService,
-        protected readonly StatusResolver $statusResolver
+        protected readonly StatusResolver $statusResolver,
+        protected readonly OrderEligibility $orderEligibility
     ) {
         parent::__construct($context);
     }
@@ -130,6 +134,16 @@ class Save extends BaseController implements HttpPostActionInterface
             $order = $this->orderRepository->get($orderId);
         } catch (LocalizedException) {
             $this->messageManager->addErrorMessage(__('The selected order does not exist.'));
+            $this->dataPersistor->set('rma_entity', $data);
+
+            return $resultRedirect->setPath('*/*/new');
+        }
+
+        // Same eligibility checks as a storefront return (PRD F2 step 3).
+        $verdict = $this->orderEligibility->explain($order);
+
+        if ($verdict !== OrderEligibility::RESULT_OK) {
+            $this->messageManager->addErrorMessage($this->orderEligibility->describe($verdict));
             $this->dataPersistor->set('rma_entity', $data);
 
             return $resultRedirect->setPath('*/*/new');
