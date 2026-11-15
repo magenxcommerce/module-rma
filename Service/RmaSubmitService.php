@@ -8,7 +8,7 @@
  * identifiers renamed, GraphQL surface split into a sibling module.
  * Modified by MagenX: createRma() takes an initial status and a callback that
  * fills extra RMA fields before the save; locks the order row so parallel returns
- * cannot together exceed the returnable qty.
+ * cannot together exceed the returnable qty; refuses item quantities below 1.
  */
 declare(strict_types=1);
 
@@ -201,6 +201,12 @@ class RmaSubmitService
             if (!isset($eligibleItems[$orderItemId])) {
                 throw new LocalizedException(
                     __('Item ID %1 is not eligible for return on order #%2.', $orderItemId, $order->getIncrementId())
+                );
+            }
+
+            if ((int)$itemData['qty_requested'] < 1) {
+                throw new LocalizedException(
+                    __('Each item needs an order item ID and a quantity above zero.')
                 );
             }
 

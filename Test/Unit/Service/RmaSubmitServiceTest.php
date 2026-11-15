@@ -467,4 +467,26 @@ class RmaSubmitServiceTest extends TestCase
             order: $order
         );
     }
+
+    /**
+     * @dataProvider nonPositiveQtyProvider
+     */
+    public function testSaveItemsRefusesQtyBelowOne(int $qty): void
+    {
+        $order = $this->createMock(OrderInterface::class);
+        $this->orderEligibility->method('getEligibleItems')->willReturn([
+            ['order_item_id' => 5, 'qty_available' => 2],
+        ]);
+        $this->itemRepository->expects($this->never())->method('save');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessageMatches('/above zero/');
+
+        $this->service->saveItems(1, [5 => ['qty_requested' => $qty, 'condition_id' => null]], $order);
+    }
+
+    public static function nonPositiveQtyProvider(): array
+    {
+        return ['zero' => [0], 'negative' => [-5]];
+    }
 }
