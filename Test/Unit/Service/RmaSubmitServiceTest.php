@@ -14,7 +14,13 @@ namespace Magenx\Rma\Test\Unit\Service;
 
 use Magenx\Rma\Api\Data\RMAInterface;
 use Magenx\Rma\Api\Data\RMAInterfaceFactory;
+use Magenx\Rma\Api\Data\ItemConditionInterface;
+use Magenx\Rma\Api\Data\ReasonInterface;
+use Magenx\Rma\Api\Data\ResolutionTypeInterface;
+use Magenx\Rma\Api\ItemConditionRepositoryInterface;
 use Magenx\Rma\Api\ItemRepositoryInterface;
+use Magenx\Rma\Api\ReasonRepositoryInterface;
+use Magenx\Rma\Api\ResolutionTypeRepositoryInterface;
 use Magenx\Rma\Api\RMARepositoryInterface;
 use Magenx\Rma\Helper\ModuleConfig;
 use Magenx\Rma\Model\Item;
@@ -28,6 +34,7 @@ use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Event\ManagerInterface as EventManagerInterface;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Sales\Api\Data\OrderInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -45,6 +52,9 @@ class RmaSubmitServiceTest extends TestCase
     private ResourceConnection&MockObject $resourceConnection;
     private AdapterInterface&MockObject $connection;
     private EventManagerInterface&MockObject $eventManager;
+    private ReasonRepositoryInterface&MockObject $reasonRepository;
+    private ResolutionTypeRepositoryInterface&MockObject $resolutionTypeRepository;
+    private ItemConditionRepositoryInterface&MockObject $itemConditionRepository;
     private RmaSubmitService $service;
 
     protected function setUp(): void
@@ -63,6 +73,19 @@ class RmaSubmitServiceTest extends TestCase
 
         $this->resourceConnection->method('getConnection')->willReturn($this->connection);
 
+        $this->reasonRepository = $this->createMock(ReasonRepositoryInterface::class);
+        $this->reasonRepository->method('get')->willReturnCallback(fn(int $id) => $id === 404
+            ? throw new NoSuchEntityException(__('missing'))
+            : $this->createConfiguredMock(ReasonInterface::class, ['getIsActive' => $id === 9 ? 0 : 1, 'getCode' => 'r' . $id]));
+        $this->resolutionTypeRepository = $this->createMock(ResolutionTypeRepositoryInterface::class);
+        $this->resolutionTypeRepository->method('get')->willReturnCallback(
+            fn(int $id) => $this->createConfiguredMock(ResolutionTypeInterface::class, ['getIsActive' => $id === 9 ? 0 : 1])
+        );
+        $this->itemConditionRepository = $this->createMock(ItemConditionRepositoryInterface::class);
+        $this->itemConditionRepository->method('get')->willReturnCallback(
+            fn(int $id) => $this->createConfiguredMock(ItemConditionInterface::class, ['getIsActive' => $id === 9 ? 0 : 1])
+        );
+
         $this->service = new RmaSubmitService(
             $this->rmaRepository,
             $this->rmaFactory,
@@ -73,7 +96,10 @@ class RmaSubmitServiceTest extends TestCase
             $this->attachmentService,
             $this->orderEligibility,
             $this->resourceConnection,
-            $this->eventManager
+            $this->eventManager,
+            $this->reasonRepository,
+            $this->resolutionTypeRepository,
+            $this->itemConditionRepository
         );
     }
 
@@ -488,5 +514,66 @@ class RmaSubmitServiceTest extends TestCase
     public static function nonPositiveQtyProvider(): array
     {
         return ['zero' => [0], 'negative' => [-5]];
+    }
+
+    /**
+     * @dataProvider unavailableLookupProvider
+     */
+    public function testCreateRmaRefusesUnknownOrInactiveLookups(
+        int $reasonId,
+        int $resolutionTypeId,
+        ?int $conditionId,
+        string $message
+    ): void {
+        $order = $this->createMock(OrderInterface::class);
+        $order->method('getStoreId')->willReturn(1);
+        $this->statusResolver->method('getIdByCode')->willReturn(1);
+        $this->rmaFactory->method('create')->willReturn($this->createMock(RMAInterface::class));
+        $this->connection->expects($this->never())->method('beginTransaction');
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessageMatches($message);
+
+        $this->service->createRma(
+            order: $order,
+            customerId: 1,
+            customerEmail: 'test@example.com',
+            customerName: 'Test User',
+            reasonId: $reasonId,
+            resolutionTypeId: $resolutionTypeId,
+            selectedItems: [5 => ['qty_requested' => 1, 'condition_id' => $conditionId]]
+        );
+    }
+
+    public static function unavailableLookupProvider(): array
+    {
+        return [
+            'unknown reason' => [404, 1, null, '/reason is not available/'],
+            'inactive reason' => [9, 1, null, '/reason is not available/'],
+            'inactive resolution' => [1, 9, null, '/resolution is not available/'],
+            'inactive condition' => [1, 1, 9, '/condition is not available/'],
+        ];
+    }
+
+    public function testWithdrawalReturnMayUseInactiveReasonAndResolution(): void
+    {
+        $order = $this->createMock(OrderInterface::class);
+        $order->method('getStoreId')->willReturn(1);
+        $this->statusResolver->method('getIdByCode')->willReturn(1);
+        $rma = $this->createMock(RMAInterface::class);
+        $rma->method('isWithdrawal')->willReturn(true);
+        $this->rmaFactory->method('create')->willReturn($rma);
+        $this->orderEligibility->method('getEligibleItems')->willReturn([]);
+        $this->rmaRepository->expects($this->once())->method('save');
+
+        $this->service->createRma(
+            order: $order,
+            customerId: null,
+            customerEmail: 'test@example.com',
+            customerName: 'Test User',
+            reasonId: 9,
+            resolutionTypeId: 9,
+            selectedItems: []
+        );
     }
 }
