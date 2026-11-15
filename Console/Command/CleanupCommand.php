@@ -31,12 +31,7 @@ class CleanupCommand extends Command
 {
     const OPTION_DAYS = 'days';
     const OPTION_DRY_RUN = 'dry-run';
-    const CLOSED_STATUSES = [
-        StatusCodes::RESOLVED,
-        StatusCodes::REJECTED,
-        StatusCodes::CANCELED_BY_CUSTOMER,
-        StatusCodes::REFUNDED,
-    ];
+    const CLOSED_STATUSES = StatusCodes::FINAL_CODES;
 
     /**
      * Statuses where the next step is the customer's. Only these can expire:
