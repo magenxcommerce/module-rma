@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: loaded items carry their store labels.
  */
 declare(strict_types=1);
 
@@ -13,10 +14,13 @@ namespace Magenx\Rma\Model\ResourceModel\ItemCondition;
 
 use Magenx\Rma\Model\ItemCondition as Model;
 use Magenx\Rma\Model\ResourceModel\ItemCondition as ResourceModel;
+use Magenx\Rma\Model\ResourceModel\StoreLabelsCollectionTrait;
 use Magento\Framework\Model\ResourceModel\Db\Collection\AbstractCollection;
 
 class Collection extends AbstractCollection
 {
+    use StoreLabelsCollectionTrait;
+
     /**
      * @var string
      */
