@@ -6,6 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: codes are immutable and system codes cannot be deleted.
  */
 declare(strict_types=1);
 
@@ -16,6 +17,8 @@ use Magento\Framework\Model\ResourceModel\Db\AbstractDb;
 
 class ItemCondition extends AbstractDb
 {
+    use LookupCodeGuardTrait;
+
     /**
      * @var string
      */
@@ -25,6 +28,14 @@ class ItemCondition extends AbstractDb
      * @var string
      */
     protected string $labelsTable = '';
+
+    /**
+     * @return string[]
+     */
+    protected function getProtectedCodes(): array
+    {
+        return [];
+    }
 
     /**
      * @return void

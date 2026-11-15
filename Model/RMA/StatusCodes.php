@@ -6,7 +6,7 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
- * Modified by MagenX: added the refunded status.
+ * Modified by MagenX: added the refunded status; need_details is a protected system status.
  */
 declare(strict_types=1);
 
@@ -35,6 +35,7 @@ class StatusCodes
 
     const PROTECTED_CODES = [
         self::NEW_REQUEST,
+        self::NEED_DETAILS,
         self::APPROVED,
         self::REJECTED,
         self::SHIPPED_BY_CUSTOMER,

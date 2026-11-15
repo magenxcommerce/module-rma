@@ -6,16 +6,20 @@
  *
  * Forked from mage-os/module-rma 2.4.1 into Magenx_Rma / Magenx_RmaGraphQl;
  * identifiers renamed, GraphQL surface split into a sibling module.
+ * Modified by MagenX: codes are immutable and system codes cannot be deleted.
  */
 declare(strict_types=1);
 
 namespace Magenx\Rma\Model\ResourceModel;
 
+use Magenx\Rma\Model\RMA\StatusCodes;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Framework\Model\ResourceModel\Db\AbstractDb;
 
 class Status extends AbstractDb
 {
+    use LookupCodeGuardTrait;
+
     /**
      * @var string
      */
@@ -25,6 +29,14 @@ class Status extends AbstractDb
      * @var string
      */
     protected string $labelsTable = '';
+
+    /**
+     * @return string[]
+     */
+    protected function getProtectedCodes(): array
+    {
+        return StatusCodes::PROTECTED_CODES;
+    }
 
     /**
      * @return void
